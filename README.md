@@ -71,7 +71,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-The backend dependency file will be added when the FastAPI service is implemented. The frontend can be installed and run now.
+The backend uses FastAPI and Uvicorn.
 
 ## Usage
 
@@ -83,7 +83,7 @@ source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-The backend command is the planned FastAPI entry point for the next milestone.
+The backend runs at `http://127.0.0.1:8000` by default.
 
 Start the frontend:
 
@@ -186,7 +186,13 @@ calendar-agent/
 │   ├── tsconfig.node.json
 │   └── vite.config.ts
 ├── backend/
-│   └── README.md
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── __init__.py
+│   │   └── main.py
+│   └── tests/
+│       └── .gitkeep
 └── sample-data/
     └── courses.json
 ```
