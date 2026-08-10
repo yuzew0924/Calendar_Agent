@@ -30,3 +30,14 @@ The API exposes:
 
 - `GET /`
 - `GET /health`
+
+## Test
+
+With the backend virtual environment activated, run:
+
+```bash
+pytest
+```
+
+The test suite verifies that `GET /health` returns HTTP `200` and the JSON
+payload `{"status": "ok"}`.

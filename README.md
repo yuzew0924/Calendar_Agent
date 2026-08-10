@@ -187,12 +187,13 @@ calendar-agent/
 │   └── vite.config.ts
 ├── backend/
 │   ├── README.md
+│   ├── pytest.ini
 │   ├── requirements.txt
 │   ├── app/
 │   │   ├── __init__.py
 │   │   └── main.py
 │   └── tests/
-│       └── .gitkeep
+│       └── test_health.py
 └── sample-data/
     └── courses.json
 ```
