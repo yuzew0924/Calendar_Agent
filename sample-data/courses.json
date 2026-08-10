@@ -1,0 +1,92 @@
+{
+  "courses": [
+    {
+      "code": "CSE 414",
+      "title": "Database Systems",
+      "groups": [
+        {
+          "type": "lecture",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "C",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "start": "12:30",
+                  "end": "13:20"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "quiz",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "CD",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["Th"],
+                  "start": "14:30",
+                  "end": "15:20"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CSE 332",
+      "title": "Data Structures and Parallelism",
+      "groups": [
+        {
+          "type": "lecture",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "B",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "start": "15:30",
+                  "end": "16:20"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "quiz",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "BC",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["Th"],
+                  "start": "15:30",
+                  "end": "16:20"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preferences": {
+    "earliestStart": "09:30",
+    "allowEarlierIfOnlyOption": true,
+    "allowedGapMinutes": [10],
+    "minimumLongGapMinutes": 120,
+    "requireOpenSections": true,
+    "fixedSections": ["CSE 414 C", "CSE 414 CD"]
+  }
+}

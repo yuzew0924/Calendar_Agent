@@ -71,7 +71,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-The current repository is still in the planning/scaffold stage, so the `frontend/` and `backend/` implementation folders will be added next.
+The backend dependency file will be added when the FastAPI service is implemented. The frontend can be installed and run now.
 
 ## Usage
 
@@ -82,6 +82,8 @@ cd backend
 source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
+
+The backend command is the planned FastAPI entry point for the next milestone.
 
 Start the frontend:
 
@@ -164,11 +166,12 @@ Example workflow:
 
 ## Project Structure
 
-Planned structure:
+Current structure:
 
 ```text
 calendar-agent/
 ├── README.md
+├── .env.example
 ├── docs/
 │   ├── agent-design.md
 │   └── input-format.md
@@ -177,45 +180,24 @@ calendar-agent/
 │   ├── package.json
 │   ├── src/
 │   │   ├── App.tsx
-│   │   ├── components/
-│   │   │   ├── CourseEditor.tsx
-│   │   │   ├── PreferencePanel.tsx
-│   │   │   ├── ScheduleCalendar.tsx
-│   │   │   └── ScheduleResults.tsx
-│   │   ├── api/
-│   │   │   └── schedules.ts
-│   │   └── types/
-│   │       └── schedule.ts
+│   │   ├── main.tsx
+│   │   └── styles.css
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
 │   └── vite.config.ts
 ├── backend/
-│   ├── requirements.txt
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   ├── routes/
-│   │   │   └── schedules.py
-│   │   └── scheduler/
-│   │       ├── solver.py
-│   │       ├── scoring.py
-│   │       └── time_utils.py
-│   └── tests/
-│       └── test_scheduler.py
+│   └── README.md
 └── sample-data/
     └── courses.json
 ```
 
-Current scaffold:
+Directory responsibilities:
 
-```text
-calendar-agent/
-├── README.md
-├── docs/
-│   ├── agent-design.md
-│   └── input-format.md
-├── src/
-├── tests/
-└── .gitignore
-```
+- `frontend/`: React, TypeScript, and Vite application for course input, preference controls, schedule results, and calendar visualization.
+- `backend/`: Python backend for schedule generation, scoring, API routes, and future AI-assisted extraction.
+- `sample-data/`: Example course and preference payloads used for development and testing.
+- `docs/`: Product notes, agent design, and input-format documentation.
+- `.env.example`: Template for local configuration values.
 
 ## Configuration
 
@@ -248,6 +230,14 @@ Run frontend tests:
 ```bash
 cd frontend
 npm test
+```
+
+Frontend tests are not configured yet. The current frontend verification commands are:
+
+```bash
+cd frontend
+npm run build
+npm run dev
 ```
 
 Testing should cover:
