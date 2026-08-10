@@ -1,108 +1,118 @@
 # Calendar Agent
 
-Calendar Agent is a course schedule planning assistant. It takes course names, available lecture and section times, and personal scheduling preferences, then generates ranked schedule options with calendar-style visualizations.
+Calendar Agent is a course schedule planning assistant that helps students compare possible class schedules before registration. Users can enter courses, available lecture and quiz sections, fixed choices, and scheduling preferences. The app then generates ranked schedule options and displays each one as a weekly calendar.
 
-## Goal
+## Description
 
-The project is designed for registration planning workflows where a student has several possible courses and sections, plus constraints such as:
+Planning a course schedule is often messy because every course may have several lectures, quiz sections, labs, availability states, and registration constraints. Calendar Agent is designed to turn that information into clear options.
 
-- Avoid classes before a preferred start time.
-- Prefer compact schedules.
-- Avoid gaps shorter than a specified threshold.
-- Allow only specific gap patterns, such as 10-minute transitions or 2-hour breaks.
-- Keep fixed sections that have already been selected.
+The project focuses on three core problems:
+
+- Finding conflict-free combinations across multiple courses.
+- Ranking schedules based on personal preferences.
+- Showing each result visually so the user can quickly judge whether the schedule feels too tight, too spread out, or acceptable.
+
+The planned architecture uses a React frontend for the interactive calendar interface and a Python backend for schedule generation, scoring, and future AI-assisted input parsing.
+
+## Features
+
+- Enter courses with lectures, quiz sections, labs, and meeting times.
+- Mark sections as fixed when the user has already chosen them.
+- Filter by availability, such as open-only sections.
+- Detect time conflicts across weekdays.
+- Apply preferences such as avoiding early classes or avoiding awkward gaps.
+- Generate multiple ranked schedule plans.
+- Explain why each schedule is recommended or penalized.
+- Visualize each schedule as a weekly calendar.
 - Compare alternate course sets, such as `208 + 414 + 370 + 332` versus `351 + 414 + 370 + 332`.
 
-## Core Workflow
+## Tech Stack
 
-1. Enter courses and available sections.
-2. Mark fixed sections when a choice is already locked.
-3. Configure preferences and hard constraints.
-4. Generate valid schedule combinations.
-5. Rank schedules by fit.
-6. View each option as a weekly calendar.
-7. Export or save preferred plans.
+- Frontend: React, TypeScript, Vite
+- Backend: Python, FastAPI
+- Scheduling Engine: Python service layer
+- Testing: pytest for backend tests, Vitest for frontend tests
+- Future AI Layer: OCR or LLM-assisted parsing for screenshots and pasted registration data
 
-## Planned Directory Structure
+## Requirements
+
+Planned development requirements:
+
+- Node.js 20+
+- Python 3.11+
+- npm or pnpm
+- pip
+- Git
+
+No external API key is required for the initial manual-input MVP. Future screenshot parsing or AI extraction features may require an API key.
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone <repository-url>
+cd calendar-agent
+```
+
+Install frontend dependencies:
+
+```bash
+cd frontend
+npm install
+```
+
+Install backend dependencies:
+
+```bash
+cd ../backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+The current repository is still in the planning/scaffold stage, so the `frontend/` and `backend/` implementation folders will be added next.
+
+## Usage
+
+Start the backend:
+
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn app.main:app --reload
+```
+
+Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open the local app:
 
 ```text
-Calendar Agent/
-├── README.md
-├── docs/
-│   ├── agent-design.md
-│   └── input-format.md
-├── src/
-│   ├── app/
-│   │   ├── index.html
-│   │   ├── styles.css
-│   │   └── main.js
-│   ├── scheduler/
-│   │   ├── solver.js
-│   │   ├── scoring.js
-│   │   └── time.js
-│   └── data/
-│       └── sample-courses.json
-└── tests/
-    └── scheduler.test.js
+http://localhost:5173
 ```
 
-## Key Concepts
+Example workflow:
 
-### Course
+1. Add courses such as `MATH 208`, `CSE 414`, `INFO 370`, and `CSE 332`.
+2. Enter each available lecture and quiz section.
+3. Lock fixed sections, such as `CSE 414 C` and `CSE 414 CD`.
+4. Set preferences, such as no classes before `9:30 AM` unless unavoidable.
+5. Generate schedule options.
+6. Compare the ranked results in the weekly calendar view.
 
-A course is a registration unit such as `CSE 332`, `CSE 414`, `INFO 370`, or `MATH 208`.
-
-### Section
-
-A section is one selectable class component, such as a lecture, quiz, lab, or discussion. A course may require one lecture and one linked quiz section.
-
-### Schedule Option
-
-A schedule option is one complete selection across all requested courses. It must be conflict-free and should satisfy the user's constraints.
-
-### Preference
-
-A preference affects ranking. Examples include avoiding early classes, minimizing short gaps, keeping Tuesdays free, or grouping classes into compact blocks.
-
-### Hard Constraint
-
-A hard constraint invalidates a schedule. Examples include time conflicts, unavailable sections when availability is required, or classes before an absolute earliest allowed time.
-
-## Initial MVP Scope
-
-The first version should support:
-
-- Manual JSON input for courses and sections.
-- Fixed and optional sections.
-- Conflict detection across weekdays.
-- Gap validation.
-- Ranked schedule generation.
-- Weekly calendar visualization.
-- Multiple scenario comparison.
-
-Image extraction and OCR can be added later as an input layer. The scheduler should stay independent from the OCR layer so manually entered data and parsed screenshot data use the same planning logic.
-
-## Example Preference Profile
-
-```json
-{
-  "earliestStart": "09:30",
-  "allowEarlierIfOnlyOption": true,
-  "allowedGapMinutes": [10],
-  "minimumLongGapMinutes": 120,
-  "preferCompactDays": true,
-  "preferOpenMornings": true,
-  "fixedSections": ["CSE 414 C", "CSE 414 CD"]
-}
-```
-
-## Example Input Shape
+## Example Input
 
 ```json
 {
   "courses": [
     {
       "code": "CSE 414",
+      "title": "Database Systems",
       "groups": [
         {
           "type": "lecture",
@@ -112,7 +122,11 @@ Image extraction and OCR can be added later as an input layer. The scheduler sho
               "id": "C",
               "status": "open",
               "meetings": [
-                { "days": ["M", "W", "F"], "start": "12:30", "end": "13:20" }
+                {
+                  "days": ["M", "W", "F"],
+                  "start": "12:30",
+                  "end": "13:20"
+                }
               ]
             }
           ]
@@ -125,25 +139,161 @@ Image extraction and OCR can be added later as an input layer. The scheduler sho
               "id": "CD",
               "status": "open",
               "meetings": [
-                { "days": ["Th"], "start": "14:30", "end": "15:20" }
+                {
+                  "days": ["Th"],
+                  "start": "14:30",
+                  "end": "15:20"
+                }
               ]
             }
           ]
         }
       ]
     }
-  ]
+  ],
+  "preferences": {
+    "earliestStart": "09:30",
+    "allowEarlierIfOnlyOption": true,
+    "allowedGapMinutes": [10],
+    "minimumLongGapMinutes": 120,
+    "requireOpenSections": true,
+    "fixedSections": ["CSE 414 C", "CSE 414 CD"]
+  }
 }
 ```
 
-## Development Notes
+## Project Structure
 
-The scheduler should be deterministic and explainable. Every generated option should include:
+Planned structure:
 
-- Selected sections.
-- Conflict status.
-- Gap summary by day.
-- Constraint violations, if any.
-- A ranking score with readable reasons.
+```text
+calendar-agent/
+├── README.md
+├── docs/
+│   ├── agent-design.md
+│   └── input-format.md
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── components/
+│   │   │   ├── CourseEditor.tsx
+│   │   │   ├── PreferencePanel.tsx
+│   │   │   ├── ScheduleCalendar.tsx
+│   │   │   └── ScheduleResults.tsx
+│   │   ├── api/
+│   │   │   └── schedules.ts
+│   │   └── types/
+│   │       └── schedule.ts
+│   └── vite.config.ts
+├── backend/
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   ├── routes/
+│   │   │   └── schedules.py
+│   │   └── scheduler/
+│   │       ├── solver.py
+│   │       ├── scoring.py
+│   │       └── time_utils.py
+│   └── tests/
+│       └── test_scheduler.py
+└── sample-data/
+    └── courses.json
+```
 
-This makes the agent useful during real registration decisions because it can explain why one schedule is better than another.
+Current scaffold:
+
+```text
+calendar-agent/
+├── README.md
+├── docs/
+│   ├── agent-design.md
+│   └── input-format.md
+├── src/
+├── tests/
+└── .gitignore
+```
+
+## Configuration
+
+The manual-input MVP does not require environment variables.
+
+Future AI parsing features may use:
+
+```bash
+OPENAI_API_KEY=your_api_key
+```
+
+Future calendar export integrations may use provider-specific credentials:
+
+```bash
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+```
+
+## Testing
+
+Run backend tests:
+
+```bash
+cd backend
+pytest
+```
+
+Run frontend tests:
+
+```bash
+cd frontend
+npm test
+```
+
+Testing should cover:
+
+- Time parsing.
+- Conflict detection.
+- Gap calculation.
+- Fixed-section handling.
+- Schedule ranking.
+- API request and response validation.
+- Calendar rendering behavior.
+
+## Known Issues / Limitations
+
+- The app is currently in the planning/scaffold stage.
+- Course data must initially be entered manually.
+- Screenshot parsing is planned but not implemented yet.
+- Seat availability refresh is planned but not implemented yet.
+- The first version will focus on weekday schedules.
+
+## Roadmap
+
+- Build the Python scheduling engine.
+- Add FastAPI endpoints for schedule generation.
+- Build the React course input and preference UI.
+- Add weekly calendar visualization.
+- Add sample course data.
+- Add import support for pasted registration tables.
+- Add screenshot/OCR-assisted extraction.
+- Add export to `.ics` calendar files.
+- Add saved schedule scenarios.
+
+## Contributing
+
+This is currently a personal planning and portfolio project. A future contribution workflow may use:
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Make changes.
+4. Run backend and frontend tests.
+5. Open a pull request with a clear description.
+
+## Author
+
+Yz Wang
+
+## License
+
+License to be decided.
