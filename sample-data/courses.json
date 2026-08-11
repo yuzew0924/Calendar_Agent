@@ -5,6 +5,7 @@
       "title": "Database Systems",
       "groups": [
         {
+          "id": "lecture",
           "type": "lecture",
           "choose": 1,
           "sections": [
@@ -22,12 +23,14 @@
           ]
         },
         {
+          "id": "quiz",
           "type": "quiz",
           "choose": 1,
           "sections": [
             {
               "id": "CD",
               "status": "open",
+              "requiredSectionIds": ["C"],
               "meetings": [
                 {
                   "days": ["Th"],
@@ -45,6 +48,7 @@
       "title": "Data Structures and Parallelism",
       "groups": [
         {
+          "id": "lecture",
           "type": "lecture",
           "choose": 1,
           "sections": [
@@ -62,12 +66,14 @@
           ]
         },
         {
+          "id": "quiz",
           "type": "quiz",
           "choose": 1,
           "sections": [
             {
               "id": "BC",
               "status": "open",
+              "requiredSectionIds": ["B"],
               "meetings": [
                 {
                   "days": ["Th"],
@@ -88,5 +94,6 @@
     "minimumLongGapMinutes": 120,
     "requireOpenSections": true,
     "fixedSections": ["CSE 414 C", "CSE 414 CD"]
-  }
+  },
+  "maxResults": 10
 }

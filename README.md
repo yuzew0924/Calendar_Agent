@@ -117,6 +117,7 @@ Example workflow:
       "title": "Database Systems",
       "groups": [
         {
+          "id": "lecture",
           "type": "lecture",
           "choose": 1,
           "sections": [
@@ -134,12 +135,14 @@ Example workflow:
           ]
         },
         {
+          "id": "quiz",
           "type": "quiz",
           "choose": 1,
           "sections": [
             {
               "id": "CD",
               "status": "open",
+              "requiredSectionIds": ["C"],
               "meetings": [
                 {
                   "days": ["Th"],
@@ -160,9 +163,14 @@ Example workflow:
     "minimumLongGapMinutes": 120,
     "requireOpenSections": true,
     "fixedSections": ["CSE 414 C", "CSE 414 CD"]
-  }
+  },
+  "maxResults": 10
 }
 ```
+
+This payload maps directly to `GenerateScheduleRequest`. The canonical field
+definitions, defaults, validation rules, object relationships, and response
+example are documented in [`docs/input-format.md`](docs/input-format.md).
 
 ## Project Structure
 
