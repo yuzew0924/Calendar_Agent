@@ -11,6 +11,7 @@ from app.models import (
     GenerateScheduleRequest,
     GenerateScheduleResponse,
     Meeting,
+    Preferences,
     Section,
     SectionGroup,
 )
@@ -170,6 +171,58 @@ def test_course_can_contain_multiple_section_groups() -> None:
     assert len(course.section_groups) == 3
 
 
+def test_preferences_accept_documented_fields() -> None:
+    preferences = Preferences.model_validate(
+        {
+            "earliestStart": "09:30",
+            "allowEarlierIfOnlyOption": True,
+            "allowedGapMinutes": 90,
+            "minimumLongGapMinutes": 120,
+            "requireOpenSections": True,
+            "fixedSections": {"CSE 123": ["A", "AA"]},
+        }
+    )
+
+    payload = preferences.model_dump(mode="json", by_alias=True)
+    assert payload["earliestStart"] == "09:30"
+    assert payload["allowedGapMinutes"] == 90
+    assert payload["fixedSections"] == {"CSE 123": ["A", "AA"]}
+
+
+@pytest.mark.parametrize("invalid_time", ["9:30", "09:30:00", "24:00", "09:60"])
+def test_preferences_reject_invalid_earliest_start(invalid_time: str) -> None:
+    with pytest.raises(ValidationError, match="24-hour HH:MM format"):
+        Preferences.model_validate({"earliestStart": invalid_time})
+
+
+@pytest.mark.parametrize(
+    "field_name", ["allowedGapMinutes", "minimumLongGapMinutes"]
+)
+def test_preferences_reject_negative_gap_values(field_name: str) -> None:
+    with pytest.raises(ValidationError):
+        Preferences.model_validate({field_name: -1})
+
+
+def test_request_rejects_unknown_fixed_course(
+    sample_request_data: dict[str, object],
+) -> None:
+    invalid_request = deepcopy(sample_request_data)
+    invalid_request["preferences"]["fixedSections"] = {"CSE 999": ["A"]}
+
+    with pytest.raises(ValidationError, match="fixed section course does not exist"):
+        GenerateScheduleRequest.model_validate(invalid_request)
+
+
+def test_request_rejects_unknown_fixed_section(
+    sample_request_data: dict[str, object],
+) -> None:
+    invalid_request = deepcopy(sample_request_data)
+    invalid_request["preferences"]["fixedSections"] = {"CSE 414": ["missing"]}
+
+    with pytest.raises(ValidationError, match="fixed section does not exist"):
+        GenerateScheduleRequest.model_validate(invalid_request)
+
+
 def test_sample_data_matches_request_model(sample_request_data: dict[str, object]) -> None:
     request = GenerateScheduleRequest.model_validate(sample_request_data)
 
@@ -190,6 +243,7 @@ def test_core_model_schemas_use_documented_fields() -> None:
     section_schema = Section.model_json_schema(by_alias=True)
     group_schema = SectionGroup.model_json_schema(by_alias=True)
     course_schema = Course.model_json_schema(by_alias=True)
+    preferences_schema = Preferences.model_json_schema(by_alias=True)
 
     assert set(meeting_schema["properties"]) == {
         "days",
@@ -209,6 +263,14 @@ def test_core_model_schemas_use_documented_fields() -> None:
         "courseCode",
         "title",
         "sectionGroups",
+    }
+    assert set(preferences_schema["properties"]) == {
+        "earliestStart",
+        "allowEarlierIfOnlyOption",
+        "allowedGapMinutes",
+        "minimumLongGapMinutes",
+        "requireOpenSections",
+        "fixedSections",
     }
 
 

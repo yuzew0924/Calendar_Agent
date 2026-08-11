@@ -160,22 +160,35 @@ all defaults shown below.
 |---|---|---|---|---|
 | `earliestStart` | `earliest_start` | `HH:MM \| null` | `null` | Preferred earliest class start; disabled when `null` |
 | `allowEarlierIfOnlyOption` | `allow_earlier_if_only_option` | `boolean` | `false` | Permit earlier classes only when no schedule satisfies `earliestStart` |
-| `allowedGapMinutes` | `allowed_gap_minutes` | `integer[]` | `[]` | Exact short gaps that receive no penalty |
+| `allowedGapMinutes` | `allowed_gap_minutes` | `integer \| null` | `null` | Maximum ordinary gap that receives no penalty |
 | `minimumLongGapMinutes` | `minimum_long_gap_minutes` | `integer \| null` | `null` | Gaps at or above this value receive no penalty |
 | `requireOpenSections` | `require_open_sections` | `boolean` | `true` | Exclude `closed` and `unknown` sections when true |
-| `fixedSections` | `fixed_sections` | `string[]` | `[]` | Canonical `COURSE_CODE SECTION_ID` values every option must include |
+| `fixedSections` | `fixed_sections` | `object<string, string[]>` | `{}` | Course codes mapped to section IDs every option must include |
 
 Preference rules:
 
-- Gap values are non-negative minutes and may not contain duplicates.
+- Gap values are non-negative minutes when provided.
 - When `earliestStart` is set and `allowEarlierIfOnlyOption` is `false`, the
   earliest time is a hard constraint.
 - When `allowEarlierIfOnlyOption` is `true`, schedules meeting `earliestStart`
   are considered first; earlier schedules are considered only if none exist.
-- A gap is preferred when it exactly matches an `allowedGapMinutes` value or is
-  at least `minimumLongGapMinutes`. Other gaps receive a ranking penalty.
+- A gap is preferred when it is no greater than `allowedGapMinutes` or is at
+  least `minimumLongGapMinutes`. Other gaps receive a ranking penalty.
 - A fixed section must exist in the named course. A fixed non-open section is
   incompatible with `requireOpenSections: true` and makes the request invalid.
+
+```json
+{
+  "earliestStart": "09:30",
+  "allowEarlierIfOnlyOption": true,
+  "allowedGapMinutes": 90,
+  "minimumLongGapMinutes": 120,
+  "requireOpenSections": true,
+  "fixedSections": {
+    "CSE 123": ["A", "AA"]
+  }
+}
+```
 
 ## GenerateScheduleRequest
 

@@ -90,10 +90,12 @@
   "preferences": {
     "earliestStart": "09:30",
     "allowEarlierIfOnlyOption": true,
-    "allowedGapMinutes": [10],
+    "allowedGapMinutes": 90,
     "minimumLongGapMinutes": 120,
     "requireOpenSections": true,
-    "fixedSections": ["CSE 414 C", "CSE 414 CD"]
+    "fixedSections": {
+      "CSE 414": ["C", "CD"]
+    }
   },
   "maxResults": 10
 }

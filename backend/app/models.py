@@ -176,10 +176,10 @@ class Course(APIModel):
 class Preferences(APIModel):
     earliest_start: time | None = None
     allow_earlier_if_only_option: bool = False
-    allowed_gap_minutes: list[int] = Field(default_factory=list)
+    allowed_gap_minutes: int | None = Field(default=None, ge=0)
     minimum_long_gap_minutes: int | None = Field(default=None, ge=0)
     require_open_sections: bool = True
-    fixed_sections: list[str] = Field(default_factory=list)
+    fixed_sections: dict[str, list[str]] = Field(default_factory=dict)
 
     @field_validator("earliest_start", mode="before")
     @classmethod
@@ -188,22 +188,18 @@ class Preferences(APIModel):
             raise ValueError("time must use 24-hour HH:MM format")
         return value
 
-    @field_validator("allowed_gap_minutes")
-    @classmethod
-    def validate_allowed_gaps(cls, gaps: list[int]) -> list[int]:
-        if any(gap < 0 for gap in gaps):
-            raise ValueError("allowed gap minutes must be non-negative")
-        if len(gaps) != len(set(gaps)):
-            raise ValueError("allowed gap minutes must not contain duplicates")
-        return gaps
-
     @field_validator("fixed_sections")
     @classmethod
-    def validate_fixed_sections(cls, fixed_sections: list[str]) -> list[str]:
-        if any(not section for section in fixed_sections):
-            raise ValueError("fixed sections must not be empty")
-        if len(fixed_sections) != len(set(fixed_sections)):
-            raise ValueError("fixed sections must not contain duplicates")
+    def validate_fixed_sections(
+        cls, fixed_sections: dict[str, list[str]]
+    ) -> dict[str, list[str]]:
+        for course_code, section_ids in fixed_sections.items():
+            if not course_code:
+                raise ValueError("fixed section course codes must not be empty")
+            if not section_ids or any(not section_id for section_id in section_ids):
+                raise ValueError("fixed section ID lists must not be empty")
+            if len(section_ids) != len(set(section_ids)):
+                raise ValueError("fixed section IDs must not contain duplicates")
         return fixed_sections
 
     @field_serializer("earliest_start", when_used="json")
@@ -222,24 +218,33 @@ class GenerateScheduleRequest(APIModel):
         if len(course_codes) != len(set(course_codes)):
             raise ValueError("course codes must be unique within a request")
 
-        available_sections: dict[str, Section] = {}
+        available_sections: dict[str, dict[str, Section]] = {}
         for course in self.courses:
+            course_sections: dict[str, Section] = {}
             for group in course.section_groups:
                 for section in group.sections:
-                    available_sections[f"{course.course_code} {section.id}"] = section
+                    course_sections[section.id] = section
+            available_sections[course.course_code] = course_sections
 
-        for fixed_section in self.preferences.fixed_sections:
-            section = available_sections.get(fixed_section)
-            if section is None:
-                raise ValueError(f"fixed section does not exist: {fixed_section}")
-            if (
-                self.preferences.require_open_sections
-                and section.status is not SectionStatus.OPEN
-            ):
-                raise ValueError(
-                    f"fixed section must be open when requireOpenSections is true: "
-                    f"{fixed_section}"
-                )
+        for course_code, section_ids in self.preferences.fixed_sections.items():
+            course_sections = available_sections.get(course_code)
+            if course_sections is None:
+                raise ValueError(f"fixed section course does not exist: {course_code}")
+
+            for section_id in section_ids:
+                section = course_sections.get(section_id)
+                if section is None:
+                    raise ValueError(
+                        f"fixed section does not exist: {course_code} {section_id}"
+                    )
+                if (
+                    self.preferences.require_open_sections
+                    and section.status is not SectionStatus.OPEN
+                ):
+                    raise ValueError(
+                        "fixed section must be open when requireOpenSections is true: "
+                        f"{course_code} {section_id}"
+                    )
 
         return self
 
