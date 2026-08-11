@@ -203,9 +203,11 @@ calendar-agent/
 │   ├── requirements.txt
 │   ├── app/
 │   │   ├── __init__.py
-│   │   └── main.py
+│   │   ├── main.py
+│   │   └── models.py
 │   └── tests/
-│       └── test_health.py
+│       ├── test_health.py
+│       └── test_models.py
 └── sample-data/
     └── courses.json
 ```

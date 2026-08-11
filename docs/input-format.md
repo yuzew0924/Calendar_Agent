@@ -1,8 +1,8 @@
 # API Data Contract
 
 This document is the canonical JSON contract for schedule generation. JSON field
-names use `camelCase`. Future Python/Pydantic models should use `snake_case`
-attributes with these JSON names as aliases.
+names use `camelCase`. The Pydantic models in `backend/app/models.py` use
+`snake_case` attributes with these JSON names as aliases.
 
 ## Object Relationships
 

@@ -12,6 +12,10 @@ Responsibilities:
 - Schedule scoring.
 - Future OCR or AI-assisted course extraction.
 
+The request and response schemas are centralized in `app/models.py`. The models
+accept the documented camelCase JSON fields while exposing snake_case Python
+attributes.
+
 ## Setup
 
 ```bash
