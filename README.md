@@ -179,9 +179,13 @@ calendar-agent/
 │   ├── index.html
 │   ├── package.json
 │   ├── src/
+│   │   ├── test/
+│   │   │   └── setup.ts
+│   │   ├── App.test.tsx
 │   │   ├── App.tsx
 │   │   ├── main.tsx
-│   │   └── styles.css
+│   │   ├── styles.css
+│   │   └── vite-env.d.ts
 │   ├── tsconfig.json
 │   ├── tsconfig.node.json
 │   └── vite.config.ts
@@ -208,19 +212,34 @@ Directory responsibilities:
 
 ## Configuration
 
-The manual-input MVP does not require environment variables.
-
-Future AI parsing features may use:
+Create a local environment file from the provided example:
 
 ```bash
-OPENAI_API_KEY=your_api_key
+cp .env.example .env
 ```
 
-Future calendar export integrations may use provider-specific credentials:
+The example contains:
 
 ```bash
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
+VITE_API_BASE_URL=http://localhost:8000
+BACKEND_HOST=127.0.0.1
+BACKEND_PORT=8000
+```
+
+`VITE_API_BASE_URL` tells the React app where to reach FastAPI. Vite is configured
+to load `.env` from the repository root. `BACKEND_HOST` and `BACKEND_PORT` define
+the intended local backend bind address. Keep secrets in `.env`; Git ignores that
+file, while `.env.example` documents safe placeholder values.
+
+To run Uvicorn with the configured backend values:
+
+```bash
+cd backend
+source .venv/bin/activate
+set -a
+source ../.env
+set +a
+uvicorn app.main:app --reload --host "$BACKEND_HOST" --port "$BACKEND_PORT"
 ```
 
 ## Testing
@@ -236,10 +255,17 @@ Run frontend tests:
 
 ```bash
 cd frontend
-npm test
+npm run test
 ```
 
-Frontend tests are not configured yet. The current frontend verification commands are:
+Run the frontend tests continuously while editing:
+
+```bash
+cd frontend
+npm run test:watch
+```
+
+The current frontend verification commands are:
 
 ```bash
 cd frontend

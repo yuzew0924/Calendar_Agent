@@ -76,6 +76,30 @@ button {
   line-height: 1;
 }
 
+.backend-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dbeafe;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.backend-status > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f6c453;
+}
+
+.backend-status.online > span {
+  background: #55d98b;
+}
+
+.backend-status.unavailable > span {
+  background: #ff7b7b;
+}
+
 .brand-mark {
   justify-content: center;
   width: 32px;
@@ -824,6 +848,10 @@ input {
 }
 
 @media (max-width: 760px) {
+  .backend-status {
+    font-size: 0;
+  }
+
   .page-tabs button {
     min-width: 0;
     flex: 1;

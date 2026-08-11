@@ -15,10 +15,11 @@ import {
   Star,
   User
 } from "lucide-react";
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 type ViewMode = "edit" | "options";
 type EventTone = "purple" | "green" | "blue" | "orange";
+type BackendState = "checking" | "online" | "unavailable";
 
 type CalendarEvent = {
   course: string;
@@ -32,6 +33,7 @@ type CalendarEvent = {
 };
 
 const courseTabs = ["MATH 208", "CSE 414", "INFO 370", "CSE 332"];
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
 const lectureGroups = [
   {
@@ -241,6 +243,40 @@ const getEventStyle = (event: CalendarEvent) =>
   }) as CSSProperties;
 
 function TopBar() {
+  const [backendState, setBackendState] = useState<BackendState>("checking");
+
+  useEffect(() => {
+    if (!apiBaseUrl) {
+      setBackendState("unavailable");
+      return;
+    }
+
+    const controller = new AbortController();
+    const healthUrl = `${apiBaseUrl.replace(/\/$/, "")}/health`;
+
+    fetch(healthUrl, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Backend health check failed");
+
+        const body = (await response.json()) as { status?: string };
+        if (body.status !== "ok") throw new Error("Unexpected health response");
+
+        setBackendState("online");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setBackendState("unavailable");
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  const statusLabel = {
+    checking: "Checking backend",
+    online: "Backend online",
+    unavailable: "Backend unavailable"
+  }[backendState];
+
   return (
     <header className="top-bar">
       <div className="brand">
@@ -251,6 +287,10 @@ function TopBar() {
           <CalendarDays size={24} />
         </div>
         <h1>Calendar Agent</h1>
+      </div>
+      <div className={`backend-status ${backendState}`} role="status" aria-live="polite">
+        <span aria-hidden="true" />
+        {statusLabel}
       </div>
     </header>
   );
