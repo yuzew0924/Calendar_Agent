@@ -228,14 +228,53 @@ def test_sample_data_matches_request_model(sample_request_data: dict[str, object
 
     assert len(request.courses) == 2
     assert request.preferences.earliest_start is not None
-    assert request.max_results == 10
-    assert request.model_dump(mode="json", by_alias=True)["maxResults"] == 10
+
+
+def test_request_accepts_course_with_empty_section_groups() -> None:
+    request = GenerateScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "courseCode": "CSE 123",
+                    "title": "Computer Programming III",
+                    "sectionGroups": [],
+                }
+            ],
+            "preferences": {
+                "earliestStart": "09:30",
+                "allowEarlierIfOnlyOption": True,
+                "allowedGapMinutes": 90,
+                "minimumLongGapMinutes": 120,
+                "requireOpenSections": True,
+                "fixedSections": {},
+            },
+        }
+    )
+
+    assert request.courses[0].section_groups == []
+
+
+def test_request_rejects_empty_courses() -> None:
+    with pytest.raises(ValidationError):
+        GenerateScheduleRequest.model_validate({"courses": [], "preferences": {}})
+
+
+def test_request_applies_nested_meeting_validation(
+    sample_request_data: dict[str, object],
+) -> None:
+    invalid_request = deepcopy(sample_request_data)
+    invalid_request["courses"][0]["sectionGroups"][0]["sections"][0][
+        "meetings"
+    ][0]["days"] = ["Saturday"]
+
+    with pytest.raises(ValidationError):
+        GenerateScheduleRequest.model_validate(invalid_request)
 
 
 def test_request_schema_uses_documented_json_names() -> None:
     properties = GenerateScheduleRequest.model_json_schema(by_alias=True)["properties"]
 
-    assert set(properties) == {"courses", "preferences", "maxResults"}
+    assert set(properties) == {"courses", "preferences"}
 
 
 def test_core_model_schemas_use_documented_fields() -> None:
@@ -287,10 +326,22 @@ def test_unknown_section_dependency_is_rejected(
         GenerateScheduleRequest.model_validate(invalid_request)
 
 
-def test_generate_response_uses_typed_options() -> None:
+def test_generate_response_accepts_empty_scaffold() -> None:
+    response = GenerateScheduleResponse.model_validate(
+        {"schedules": [], "count": 0, "warnings": []}
+    )
+
+    assert response.model_dump(mode="json", by_alias=True) == {
+        "schedules": [],
+        "count": 0,
+        "warnings": [],
+    }
+
+
+def test_generate_response_uses_typed_schedules() -> None:
     response = GenerateScheduleResponse.model_validate(
         {
-            "options": [
+            "schedules": [
                 {
                     "id": "option-1",
                     "rank": 1,
@@ -316,12 +367,19 @@ def test_generate_response_uses_typed_options() -> None:
                     "reasons": ["No conflicts"],
                 }
             ],
-            "totalOptions": 1,
+            "count": 1,
         }
     )
 
-    assert response.options[0].selections[0].course_code == "CSE 414"
-    assert response.model_dump(mode="json", by_alias=True)["totalOptions"] == 1
+    assert response.schedules[0].selections[0].course_code == "CSE 414"
+    assert response.count == 1
+
+
+def test_generate_response_rejects_incorrect_count() -> None:
+    with pytest.raises(ValidationError, match="count must equal"):
+        GenerateScheduleResponse.model_validate(
+            {"schedules": [], "count": 1, "warnings": []}
+        )
 
 
 def test_models_can_be_used_as_fastapi_schemas() -> None:
@@ -331,7 +389,7 @@ def test_models_can_be_used_as_fastapi_schemas() -> None:
     def generate_schedules(
         request: GenerateScheduleRequest,
     ) -> GenerateScheduleResponse:
-        return GenerateScheduleResponse(options=[], total_options=0)
+        return GenerateScheduleResponse(schedules=[], count=0)
 
     operation = api.openapi()["paths"]["/generate"]["post"]
     request_schema = operation["requestBody"]["content"]["application/json"]["schema"]

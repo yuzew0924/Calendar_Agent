@@ -15,7 +15,7 @@ GenerateScheduleRequest
 └── preferences: Preferences
 
 GenerateScheduleResponse
-└── options[]
+└── schedules[]
     └── selections[]
         └── section: Section
 ```
@@ -127,7 +127,7 @@ A `Course` contains every candidate section group for one requested course.
 |---|---|---|---|---|
 | `courseCode` | `course_code` | `string` | Yes | Non-empty; unique within the request |
 | `title` | `title` | `string` | Yes | Non-empty display name |
-| `sectionGroups` | `section_groups` | `SectionGroup[]` | Yes | Non-empty; group types must be unique |
+| `sectionGroups` | `section_groups` | `SectionGroup[]` | Yes | May be empty; populated group types must be unique |
 
 All section IDs must be unique across a course. This makes fixed selections and
 section dependencies unambiguous.
@@ -196,7 +196,6 @@ Preference rules:
 |---|---|---|---|---|
 | `courses` | `courses` | `Course[]` | Yes | Non-empty; unique course codes |
 | `preferences` | `preferences` | `Preferences` | No | Defaults to an empty/default preferences object |
-| `maxResults` | `max_results` | `integer` | No | Defaults to `10`; range `1` to `100` |
 
 The complete request example is maintained in `README.md` and
 `sample-data/courses.json`.
@@ -208,8 +207,8 @@ the frontend can render a calendar without joining against the request.
 
 | JSON field | Python field | Type | Required | Rules |
 |---|---|---|---|---|
-| `options` | `options` | `ScheduleOption[]` | Yes | Ranked best-first; may be empty |
-| `totalOptions` | `total_options` | `integer` | Yes | Total valid options before `maxResults` truncation |
+| `schedules` | `schedules` | `ScheduleOption[]` | Yes | Ranked best-first; may be empty |
+| `count` | `count` | `integer` | Yes | Must equal the number of returned schedules |
 | `warnings` | `warnings` | `string[]` | No | Defaults to `[]`; request-level notices |
 
 Each response-only `ScheduleOption` contains:
@@ -228,7 +227,7 @@ and `section` fields. `section` uses the same `Section` contract defined above.
 
 ```json
 {
-  "options": [
+  "schedules": [
     {
       "id": "option-1",
       "rank": 1,
@@ -255,10 +254,10 @@ and `section` fields. `section` uses the same `Section` contract defined above.
       "warnings": []
     }
   ],
-  "totalOptions": 1,
+  "count": 1,
   "warnings": []
 }
 ```
 
-An empty successful result uses `options: []` and `totalOptions: 0`. Structurally
+An empty successful result uses `schedules: []` and `count: 0`. Structurally
 invalid or contradictory requests use FastAPI's HTTP `422` validation response.

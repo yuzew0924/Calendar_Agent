@@ -96,6 +96,5 @@
     "fixedSections": {
       "CSE 414": ["C", "CD"]
     }
-  },
-  "maxResults": 10
+  }
 }

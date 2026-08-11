@@ -126,7 +126,7 @@ class SectionGroup(APIModel):
 class Course(APIModel):
     course_code: str = Field(min_length=1)
     title: str = Field(min_length=1)
-    section_groups: list[SectionGroup] = Field(min_length=1)
+    section_groups: list[SectionGroup]
 
     @model_validator(mode="after")
     def validate_groups_and_dependencies(self) -> Self:
@@ -210,7 +210,6 @@ class Preferences(APIModel):
 class GenerateScheduleRequest(APIModel):
     courses: list[Course] = Field(min_length=1)
     preferences: Preferences = Field(default_factory=Preferences)
-    max_results: int = Field(default=10, ge=1, le=100)
 
     @model_validator(mode="after")
     def validate_courses_and_fixed_sections(self) -> Self:
@@ -265,21 +264,21 @@ class ScheduleOption(APIModel):
 
 
 class GenerateScheduleResponse(APIModel):
-    options: list[ScheduleOption]
-    total_options: int = Field(ge=0)
+    schedules: list[ScheduleOption]
+    count: int = Field(ge=0)
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_options(self) -> Self:
-        if self.total_options < len(self.options):
-            raise ValueError("total options cannot be smaller than returned options")
+    def validate_schedules(self) -> Self:
+        if self.count != len(self.schedules):
+            raise ValueError("count must equal the number of returned schedules")
 
-        option_ids = [option.id for option in self.options]
-        if len(option_ids) != len(set(option_ids)):
-            raise ValueError("schedule option IDs must be unique")
+        schedule_ids = [schedule.id for schedule in self.schedules]
+        if len(schedule_ids) != len(set(schedule_ids)):
+            raise ValueError("schedule IDs must be unique")
 
-        expected_ranks = list(range(1, len(self.options) + 1))
-        if [option.rank for option in self.options] != expected_ranks:
-            raise ValueError("schedule options must be ordered with consecutive ranks")
+        expected_ranks = list(range(1, len(self.schedules) + 1))
+        if [schedule.rank for schedule in self.schedules] != expected_ranks:
+            raise ValueError("schedules must be ordered with consecutive ranks")
 
         return self

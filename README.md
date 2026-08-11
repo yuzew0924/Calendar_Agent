@@ -165,14 +165,23 @@ Example workflow:
     "fixedSections": {
       "CSE 414": ["C", "CD"]
     }
-  },
-  "maxResults": 10
+  }
 }
 ```
 
 This payload maps directly to `GenerateScheduleRequest`. The canonical field
 definitions, defaults, validation rules, object relationships, and response
 example are documented in [`docs/input-format.md`](docs/input-format.md).
+
+## Example Response
+
+```json
+{
+  "schedules": [],
+  "count": 0,
+  "warnings": []
+}
+```
 
 ## Project Structure
 
