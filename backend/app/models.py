@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+import re
 from datetime import time
 from enum import Enum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
+
+
+TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 def to_camel(value: str) -> str:
@@ -45,8 +56,8 @@ class SectionType(str, Enum):
 
 class Meeting(APIModel):
     days: list[DayCode] = Field(min_length=1)
-    start: time
-    end: time
+    start_time: time
+    end_time: time
     location: str | None = None
 
     @field_validator("days")
@@ -56,22 +67,30 @@ class Meeting(APIModel):
             raise ValueError("meeting days must not contain duplicates")
         return days
 
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def validate_time_format(cls, value: object) -> object:
+        if isinstance(value, str) and TIME_PATTERN.fullmatch(value) is None:
+            raise ValueError("time must use 24-hour HH:MM format")
+        return value
+
     @model_validator(mode="after")
     def validate_time_range(self) -> Self:
-        if self.start >= self.end:
-            raise ValueError("meeting start must be earlier than end")
+        if self.start_time >= self.end_time:
+            raise ValueError("startTime must be earlier than endTime")
         return self
 
-    @field_serializer("start", "end", when_used="json")
+    @field_serializer("start_time", "end_time", when_used="json")
     def serialize_time(self, value: time) -> str:
         return value.strftime("%H:%M")
 
 
 class Section(APIModel):
     id: str = Field(min_length=1)
+    type: SectionType
     status: SectionStatus
-    meetings: list[Meeting] = Field(min_length=1)
     sln: str | None = None
+    meetings: list[Meeting]
     required_section_ids: list[str] = Field(default_factory=list)
 
     @field_validator("required_section_ids")
@@ -91,38 +110,38 @@ class Section(APIModel):
 
 
 class SectionGroup(APIModel):
-    id: str = Field(min_length=1)
     type: SectionType
-    choose: int = Field(ge=1)
-    sections: list[Section] = Field(min_length=1)
-    name: str | None = None
+    choose: int = Field(ge=0)
+    sections: list[Section]
 
     @model_validator(mode="after")
-    def validate_selection_count(self) -> Self:
+    def validate_group(self) -> Self:
         if self.choose > len(self.sections):
-            raise ValueError("group choose cannot exceed its section count")
+            raise ValueError("choose cannot exceed the number of sections")
+        if any(section.type is not self.type for section in self.sections):
+            raise ValueError("every section type must match its group type")
         return self
 
 
 class Course(APIModel):
-    code: str = Field(min_length=1)
-    groups: list[SectionGroup] = Field(min_length=1)
-    title: str | None = None
+    course_code: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    section_groups: list[SectionGroup] = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_groups_and_dependencies(self) -> Self:
-        group_ids = [group.id for group in self.groups]
-        if len(group_ids) != len(set(group_ids)):
-            raise ValueError("group IDs must be unique within a course")
+        group_types = [group.type for group in self.section_groups]
+        if len(group_types) != len(set(group_types)):
+            raise ValueError("section group types must be unique within a course")
 
         sections: dict[str, Section] = {}
-        section_groups: dict[str, str] = {}
-        for group in self.groups:
+        section_types: dict[str, SectionType] = {}
+        for group in self.section_groups:
             for section in group.sections:
                 if section.id in sections:
                     raise ValueError("section IDs must be unique within a course")
                 sections[section.id] = section
-                section_groups[section.id] = group.id
+                section_types[section.id] = section.type
 
         for section in sections.values():
             for required_id in section.required_section_ids:
@@ -130,7 +149,7 @@ class Course(APIModel):
                     raise ValueError(
                         f"section {section.id} requires unknown section {required_id}"
                     )
-                if section_groups[required_id] == section_groups[section.id]:
+                if section_types[required_id] is section.type:
                     raise ValueError("section dependencies must reference another group")
 
         visiting: set[str] = set()
@@ -162,6 +181,13 @@ class Preferences(APIModel):
     require_open_sections: bool = True
     fixed_sections: list[str] = Field(default_factory=list)
 
+    @field_validator("earliest_start", mode="before")
+    @classmethod
+    def validate_earliest_start_format(cls, value: object) -> object:
+        if isinstance(value, str) and TIME_PATTERN.fullmatch(value) is None:
+            raise ValueError("time must use 24-hour HH:MM format")
+        return value
+
     @field_validator("allowed_gap_minutes")
     @classmethod
     def validate_allowed_gaps(cls, gaps: list[int]) -> list[int]:
@@ -192,15 +218,15 @@ class GenerateScheduleRequest(APIModel):
 
     @model_validator(mode="after")
     def validate_courses_and_fixed_sections(self) -> Self:
-        course_codes = [course.code for course in self.courses]
+        course_codes = [course.course_code for course in self.courses]
         if len(course_codes) != len(set(course_codes)):
             raise ValueError("course codes must be unique within a request")
 
         available_sections: dict[str, Section] = {}
         for course in self.courses:
-            for group in course.groups:
+            for group in course.section_groups:
                 for section in group.sections:
-                    available_sections[f"{course.code} {section.id}"] = section
+                    available_sections[f"{course.course_code} {section.id}"] = section
 
         for fixed_section in self.preferences.fixed_sections:
             section = available_sections.get(fixed_section)
@@ -220,7 +246,7 @@ class GenerateScheduleRequest(APIModel):
 
 class SelectedSection(APIModel):
     course_code: str = Field(min_length=1)
-    group_id: str = Field(min_length=1)
+    group_type: SectionType
     section: Section
 
 

@@ -113,41 +113,41 @@ Example workflow:
 {
   "courses": [
     {
-      "code": "CSE 414",
+      "courseCode": "CSE 414",
       "title": "Database Systems",
-      "groups": [
+      "sectionGroups": [
         {
-          "id": "lecture",
           "type": "lecture",
           "choose": 1,
           "sections": [
             {
               "id": "C",
+              "type": "lecture",
               "status": "open",
               "meetings": [
                 {
                   "days": ["M", "W", "F"],
-                  "start": "12:30",
-                  "end": "13:20"
+                  "startTime": "12:30",
+                  "endTime": "13:20"
                 }
               ]
             }
           ]
         },
         {
-          "id": "quiz",
           "type": "quiz",
           "choose": 1,
           "sections": [
             {
               "id": "CD",
+              "type": "quiz",
               "status": "open",
               "requiredSectionIds": ["C"],
               "meetings": [
                 {
                   "days": ["Th"],
-                  "start": "14:30",
-                  "end": "15:20"
+                  "startTime": "14:30",
+                  "endTime": "15:20"
                 }
               ]
             }

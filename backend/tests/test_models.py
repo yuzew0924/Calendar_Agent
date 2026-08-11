@@ -6,7 +6,14 @@ import pytest
 from fastapi import FastAPI
 from pydantic import ValidationError
 
-from app.models import GenerateScheduleRequest, GenerateScheduleResponse, Meeting
+from app.models import (
+    Course,
+    GenerateScheduleRequest,
+    GenerateScheduleResponse,
+    Meeting,
+    Section,
+    SectionGroup,
+)
 
 
 SAMPLE_DATA_PATH = Path(__file__).resolve().parents[2] / "sample-data" / "courses.json"
@@ -15,6 +22,152 @@ SAMPLE_DATA_PATH = Path(__file__).resolve().parents[2] / "sample-data" / "course
 @pytest.fixture
 def sample_request_data() -> dict[str, object]:
     return json.loads(SAMPLE_DATA_PATH.read_text())
+
+
+def test_meeting_accepts_supported_weekdays() -> None:
+    meeting = Meeting.model_validate(
+        {
+            "days": ["M", "W", "F"],
+            "startTime": "09:30",
+            "endTime": "10:20",
+            "location": "KNE 120",
+        }
+    )
+
+    assert meeting.model_dump(mode="json", by_alias=True) == {
+        "days": ["M", "W", "F"],
+        "startTime": "09:30",
+        "endTime": "10:20",
+        "location": "KNE 120",
+    }
+
+
+@pytest.mark.parametrize("day", ["Monday", "TH", "Sa", "X"])
+def test_meeting_rejects_unsupported_weekday(day: str) -> None:
+    with pytest.raises(ValidationError):
+        Meeting.model_validate(
+            {
+                "days": [day],
+                "startTime": "09:30",
+                "endTime": "10:20",
+            }
+        )
+
+
+@pytest.mark.parametrize("invalid_time", ["9:30", "09:30:00", "24:00", "09:60"])
+def test_meeting_rejects_invalid_time_format(invalid_time: str) -> None:
+    with pytest.raises(ValidationError, match="24-hour HH:MM format"):
+        Meeting.model_validate(
+            {
+                "days": ["M"],
+                "startTime": invalid_time,
+                "endTime": "10:20",
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("start_time", "end_time"),
+    [("10:20", "10:20"), ("11:20", "10:20")],
+)
+def test_meeting_rejects_invalid_time_range(start_time: str, end_time: str) -> None:
+    with pytest.raises(ValidationError, match="startTime must be earlier than endTime"):
+        Meeting.model_validate(
+            {
+                "days": ["M"],
+                "startTime": start_time,
+                "endTime": end_time,
+            }
+        )
+
+
+def test_section_can_contain_multiple_meetings() -> None:
+    section = Section.model_validate(
+        {
+            "id": "A",
+            "type": "lecture",
+            "status": "open",
+            "sln": "12345",
+            "meetings": [
+                {
+                    "days": ["M", "W"],
+                    "startTime": "09:30",
+                    "endTime": "10:20",
+                },
+                {
+                    "days": ["F"],
+                    "startTime": "11:30",
+                    "endTime": "12:20",
+                },
+            ],
+        }
+    )
+
+    assert len(section.meetings) == 2
+
+
+def test_section_group_accepts_valid_choose_count() -> None:
+    group = SectionGroup.model_validate(
+        {
+            "type": "quiz",
+            "choose": 1,
+            "sections": [
+                {
+                    "id": "AA",
+                    "type": "quiz",
+                    "status": "open",
+                    "meetings": [],
+                }
+            ],
+        }
+    )
+
+    assert group.choose == 1
+
+
+def test_empty_section_group_allows_choose_zero() -> None:
+    group = SectionGroup(type="lab", choose=0, sections=[])
+
+    assert group.sections == []
+
+
+def test_section_group_rejects_choose_above_section_count() -> None:
+    with pytest.raises(ValidationError, match="choose cannot exceed"):
+        SectionGroup(type="quiz", choose=1, sections=[])
+
+
+def test_section_group_rejects_mismatched_section_type() -> None:
+    with pytest.raises(ValidationError, match="section type must match"):
+        SectionGroup.model_validate(
+            {
+                "type": "quiz",
+                "choose": 1,
+                "sections": [
+                    {
+                        "id": "A",
+                        "type": "lecture",
+                        "status": "open",
+                        "meetings": [],
+                    }
+                ],
+            }
+        )
+
+
+def test_course_can_contain_multiple_section_groups() -> None:
+    course = Course.model_validate(
+        {
+            "courseCode": "CSE 123",
+            "title": "Computer Programming III",
+            "sectionGroups": [
+                {"type": "lecture", "choose": 0, "sections": []},
+                {"type": "quiz", "choose": 0, "sections": []},
+                {"type": "lab", "choose": 0, "sections": []},
+            ],
+        }
+    )
+
+    assert len(course.section_groups) == 3
 
 
 def test_sample_data_matches_request_model(sample_request_data: dict[str, object]) -> None:
@@ -32,9 +185,31 @@ def test_request_schema_uses_documented_json_names() -> None:
     assert set(properties) == {"courses", "preferences", "maxResults"}
 
 
-def test_invalid_meeting_time_is_rejected() -> None:
-    with pytest.raises(ValidationError, match="start must be earlier than end"):
-        Meeting(days=["M"], start="13:20", end="12:30")
+def test_core_model_schemas_use_documented_fields() -> None:
+    meeting_schema = Meeting.model_json_schema(by_alias=True)
+    section_schema = Section.model_json_schema(by_alias=True)
+    group_schema = SectionGroup.model_json_schema(by_alias=True)
+    course_schema = Course.model_json_schema(by_alias=True)
+
+    assert set(meeting_schema["properties"]) == {
+        "days",
+        "startTime",
+        "endTime",
+        "location",
+    }
+    assert set(meeting_schema["required"]) == {"days", "startTime", "endTime"}
+    assert set(section_schema["required"]) == {
+        "id",
+        "type",
+        "status",
+        "meetings",
+    }
+    assert set(group_schema["properties"]) == {"type", "choose", "sections"}
+    assert set(course_schema["properties"]) == {
+        "courseCode",
+        "title",
+        "sectionGroups",
+    }
 
 
 def test_unknown_section_dependency_is_rejected(
@@ -42,7 +217,9 @@ def test_unknown_section_dependency_is_rejected(
 ) -> None:
     invalid_request = deepcopy(sample_request_data)
     courses = invalid_request["courses"]
-    courses[0]["groups"][1]["sections"][0]["requiredSectionIds"] = ["missing"]
+    courses[0]["sectionGroups"][1]["sections"][0]["requiredSectionIds"] = [
+        "missing"
+    ]
 
     with pytest.raises(ValidationError, match="requires unknown section missing"):
         GenerateScheduleRequest.model_validate(invalid_request)
@@ -59,15 +236,16 @@ def test_generate_response_uses_typed_options() -> None:
                     "selections": [
                         {
                             "courseCode": "CSE 414",
-                            "groupId": "lecture",
+                            "groupType": "lecture",
                             "section": {
                                 "id": "C",
+                                "type": "lecture",
                                 "status": "open",
                                 "meetings": [
                                     {
                                         "days": ["M", "W", "F"],
-                                        "start": "12:30",
-                                        "end": "13:20",
+                                        "startTime": "12:30",
+                                        "endTime": "13:20",
                                     }
                                 ],
                             },

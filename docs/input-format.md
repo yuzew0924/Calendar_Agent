@@ -9,7 +9,7 @@ names use `camelCase`. The Pydantic models in `backend/app/models.py` use
 ```text
 GenerateScheduleRequest
 ├── courses[]: Course
-│   └── groups[]: SectionGroup
+│   └── sectionGroups[]: SectionGroup
 │       └── sections[]: Section
 │           └── meetings[]: Meeting
 └── preferences: Preferences
@@ -28,14 +28,13 @@ conflicts, and ranks the remaining schedules.
 
 ## Shared Conventions
 
-- Times use local 24-hour `HH:MM` strings.
-- `start` must be earlier than `end`.
+- Times use strict local 24-hour `HH:MM` strings.
+- `startTime` must be earlier than `endTime`.
 - Supported day codes are `M`, `T`, `W`, `Th`, and `F`.
 - IDs are case-sensitive strings and must be unique within their documented scope.
-- Required arrays may not be omitted. Arrays marked non-empty must contain at
-  least one item.
+- Required arrays may not be omitted, but `meetings` and `sections` may be empty.
 - Optional nullable fields may be omitted or set to `null`.
-- Unknown JSON fields should be rejected so input mistakes are visible.
+- Unknown JSON fields are rejected so input mistakes are visible.
 
 ## Meeting
 
@@ -45,16 +44,16 @@ times on different days uses multiple meetings.
 | JSON field | Python field | Type | Required | Rules |
 |---|---|---|---|---|
 | `days` | `days` | `DayCode[]` | Yes | Non-empty; no duplicate days |
-| `start` | `start` | `time` as `HH:MM` | Yes | Must be before `end` |
-| `end` | `end` | `time` as `HH:MM` | Yes | Must be after `start` |
+| `startTime` | `start_time` | `time` as `HH:MM` | Yes | Must be before `endTime` |
+| `endTime` | `end_time` | `time` as `HH:MM` | Yes | Must be after `startTime` |
 | `location` | `location` | `string \| null` | No | Defaults to `null` |
 
 ```json
 {
   "days": ["M", "W", "F"],
-  "start": "12:30",
-  "end": "13:20",
-  "location": "EEB 125"
+  "startTime": "09:30",
+  "endTime": "10:20",
+  "location": "KNE 120"
 }
 ```
 
@@ -65,10 +64,11 @@ A `Section` is one selectable lecture, quiz, lab, or discussion section.
 | JSON field | Python field | Type | Required | Rules |
 |---|---|---|---|---|
 | `id` | `id` | `string` | Yes | Non-empty; unique within a course |
+| `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Must match its group type |
 | `status` | `status` | `open \| closed \| unknown` | Yes | Availability at input time |
-| `meetings` | `meetings` | `Meeting[]` | Yes | Non-empty for the weekday MVP |
 | `sln` | `sln` | `string \| null` | No | Registration identifier; defaults to `null` |
-| `requiredSectionIds` | `required_section_ids` | `string[]` | No | Defaults to `[]`; every referenced section must also be selected |
+| `meetings` | `meetings` | `Meeting[]` | Yes | May be empty for an unscheduled or asynchronous section |
+| `requiredSectionIds` | `required_section_ids` | `string[]` | No | Defaults to `[]`; referenced sections must also be selected |
 
 `requiredSectionIds` captures linked-section rules without relying on section-name
 patterns. For example, quiz `CD` can require lecture `C`. Every referenced ID
@@ -76,16 +76,17 @@ must exist in another group of the same course. Cyclic dependencies are invalid.
 
 ```json
 {
-  "id": "CD",
+  "id": "AA",
+  "type": "quiz",
   "status": "open",
-  "sln": "13231",
-  "requiredSectionIds": ["C"],
+  "sln": "12345",
+  "requiredSectionIds": ["A"],
   "meetings": [
     {
       "days": ["Th"],
-      "start": "14:30",
-      "end": "15:20",
-      "location": null
+      "startTime": "09:30",
+      "endTime": "10:20",
+      "location": "LOW 101"
     }
   ]
 }
@@ -93,33 +94,26 @@ must exist in another group of the same course. Cyclic dependencies are invalid.
 
 ## SectionGroup
 
-A `SectionGroup` describes one course component and how many sections must be
-selected from it.
+A `SectionGroup` contains sections of one type and defines how many must be
+selected.
 
 | JSON field | Python field | Type | Required | Rules |
 |---|---|---|---|---|
-| `id` | `id` | `string` | Yes | Stable ID unique within the course |
-| `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Component category |
-| `choose` | `choose` | `integer` | Yes | At least `1`; no greater than section count |
-| `sections` | `sections` | `Section[]` | Yes | Non-empty |
-| `name` | `name` | `string \| null` | No | Display label; defaults to `null` |
+| `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Must match every contained section |
+| `choose` | `choose` | `integer` | Yes | At least `0`; no greater than section count |
+| `sections` | `sections` | `Section[]` | Yes | May be empty only when `choose` is `0` |
 
 ```json
 {
-  "id": "quiz",
   "type": "quiz",
   "choose": 1,
   "sections": [
     {
-      "id": "BA",
+      "id": "AA",
+      "type": "quiz",
       "status": "open",
-      "meetings": [
-        {
-          "days": ["Th"],
-          "start": "13:30",
-          "end": "14:20"
-        }
-      ]
+      "sln": "12345",
+      "meetings": []
     }
   ]
 }
@@ -127,17 +121,35 @@ selected from it.
 
 ## Course
 
-A `Course` contains every candidate component and section for one requested
-course.
+A `Course` contains every candidate section group for one requested course.
 
 | JSON field | Python field | Type | Required | Rules |
 |---|---|---|---|---|
-| `code` | `code` | `string` | Yes | Non-empty; unique within the request |
-| `groups` | `groups` | `SectionGroup[]` | Yes | Non-empty |
-| `title` | `title` | `string \| null` | No | Display name; defaults to `null` |
+| `courseCode` | `course_code` | `string` | Yes | Non-empty; unique within the request |
+| `title` | `title` | `string` | Yes | Non-empty display name |
+| `sectionGroups` | `section_groups` | `SectionGroup[]` | Yes | Non-empty; group types must be unique |
 
-All section IDs must be unique across the course, even when they belong to
-different groups. This makes fixed selections and dependencies unambiguous.
+All section IDs must be unique across a course. This makes fixed selections and
+section dependencies unambiguous.
+
+```json
+{
+  "courseCode": "CSE 123",
+  "title": "Computer Programming III",
+  "sectionGroups": [
+    {
+      "type": "lecture",
+      "choose": 0,
+      "sections": []
+    },
+    {
+      "type": "quiz",
+      "choose": 0,
+      "sections": []
+    }
+  ]
+}
+```
 
 ## Preferences
 
@@ -151,7 +163,7 @@ all defaults shown below.
 | `allowedGapMinutes` | `allowed_gap_minutes` | `integer[]` | `[]` | Exact short gaps that receive no penalty |
 | `minimumLongGapMinutes` | `minimum_long_gap_minutes` | `integer \| null` | `null` | Gaps at or above this value receive no penalty |
 | `requireOpenSections` | `require_open_sections` | `boolean` | `true` | Exclude `closed` and `unknown` sections when true |
-| `fixedSections` | `fixed_sections` | `string[]` | `[]` | Canonical `COURSE_CODE SECTION_ID` values that every option must include |
+| `fixedSections` | `fixed_sections` | `string[]` | `[]` | Canonical `COURSE_CODE SECTION_ID` values every option must include |
 
 Preference rules:
 
@@ -173,64 +185,8 @@ Preference rules:
 | `preferences` | `preferences` | `Preferences` | No | Defaults to an empty/default preferences object |
 | `maxResults` | `max_results` | `integer` | No | Defaults to `10`; range `1` to `100` |
 
-```json
-{
-  "courses": [
-    {
-      "code": "CSE 414",
-      "title": "Database Systems",
-      "groups": [
-        {
-          "id": "lecture",
-          "type": "lecture",
-          "choose": 1,
-          "sections": [
-            {
-              "id": "C",
-              "status": "open",
-              "meetings": [
-                {
-                  "days": ["M", "W", "F"],
-                  "start": "12:30",
-                  "end": "13:20"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "quiz",
-          "type": "quiz",
-          "choose": 1,
-          "sections": [
-            {
-              "id": "CD",
-              "status": "open",
-              "requiredSectionIds": ["C"],
-              "meetings": [
-                {
-                  "days": ["Th"],
-                  "start": "14:30",
-                  "end": "15:20"
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  ],
-  "preferences": {
-    "earliestStart": "09:30",
-    "allowEarlierIfOnlyOption": true,
-    "allowedGapMinutes": [10],
-    "minimumLongGapMinutes": 120,
-    "requireOpenSections": true,
-    "fixedSections": ["CSE 414 C", "CSE 414 CD"]
-  },
-  "maxResults": 10
-}
-```
+The complete request example is maintained in `README.md` and
+`sample-data/courses.json`.
 
 ## GenerateScheduleResponse
 
@@ -254,7 +210,7 @@ Each response-only `ScheduleOption` contains:
 | `reasons` | `string[]` | No | Defaults to `[]`; positive ranking explanations |
 | `warnings` | `string[]` | No | Defaults to `[]`; option-specific tradeoffs |
 
-Each response-only `SelectedSection` contains required `courseCode`, `groupId`,
+Each response-only `SelectedSection` contains required `courseCode`, `groupType`,
 and `section` fields. `section` uses the same `Section` contract defined above.
 
 ```json
@@ -267,15 +223,16 @@ and `section` fields. `section` uses the same `Section` contract defined above.
       "selections": [
         {
           "courseCode": "CSE 414",
-          "groupId": "lecture",
+          "groupType": "lecture",
           "section": {
             "id": "C",
+            "type": "lecture",
             "status": "open",
             "meetings": [
               {
                 "days": ["M", "W", "F"],
-                "start": "12:30",
-                "end": "13:20"
+                "startTime": "12:30",
+                "endTime": "13:20"
               }
             ]
           }
@@ -291,5 +248,4 @@ and `section` fields. `section` uses the same `Section` contract defined above.
 ```
 
 An empty successful result uses `options: []` and `totalOptions: 0`. Structurally
-invalid or contradictory requests should use FastAPI's HTTP `422` validation
-response rather than `GenerateScheduleResponse`.
+invalid or contradictory requests use FastAPI's HTTP `422` validation response.
