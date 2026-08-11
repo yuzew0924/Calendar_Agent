@@ -172,6 +172,8 @@ Example workflow:
 This payload maps directly to `GenerateScheduleRequest`. The canonical field
 definitions, defaults, validation rules, object relationships, and response
 example are documented in [`docs/input-format.md`](docs/input-format.md).
+The complete two-course development fixture, including open and closed sections,
+is available in [`sample-data/courses.json`](sample-data/courses.json).
 
 ## Example Response
 
@@ -218,7 +220,8 @@ calendar-agent/
 │   │   └── models.py
 │   └── tests/
 │       ├── test_health.py
-│       └── test_models.py
+│       ├── test_models.py
+│       └── test_validation.py
 └── sample-data/
     └── courses.json
 ```

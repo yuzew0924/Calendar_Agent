@@ -9,14 +9,30 @@
           "choose": 1,
           "sections": [
             {
+              "id": "A",
+              "type": "lecture",
+              "status": "closed",
+              "sln": "13221",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "startTime": "10:30",
+                  "endTime": "11:20",
+                  "location": "EEB 105"
+                }
+              ]
+            },
+            {
               "id": "C",
               "type": "lecture",
               "status": "open",
+              "sln": "13227",
               "meetings": [
                 {
                   "days": ["M", "W", "F"],
                   "startTime": "12:30",
-                  "endTime": "13:20"
+                  "endTime": "13:20",
+                  "location": "EEB 125"
                 }
               ]
             }
@@ -30,12 +46,14 @@
               "id": "CD",
               "type": "quiz",
               "status": "open",
+              "sln": "13231",
               "requiredSectionIds": ["C"],
               "meetings": [
                 {
                   "days": ["Th"],
                   "startTime": "14:30",
-                  "endTime": "15:20"
+                  "endTime": "15:20",
+                  "location": "LOW 101"
                 }
               ]
             }
