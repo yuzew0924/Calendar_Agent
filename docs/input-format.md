@@ -30,7 +30,8 @@ conflicts, and ranks the remaining schedules.
 
 - Times use strict local 24-hour `HH:MM` strings.
 - `startTime` must be earlier than `endTime`.
-- Supported day codes are `M`, `T`, `W`, `Th`, and `F`.
+- Day codes support exactly `M`, `T`, `W`, `Th`, and `F`. Full weekday names,
+  weekends, and variants such as `TH` are invalid.
 - IDs are case-sensitive strings and must be unique within their documented scope.
 - Required arrays may not be omitted, but `meetings` and `sections` may be empty.
 - Optional nullable fields may be omitted or set to `null`.
@@ -102,6 +103,13 @@ selected.
 | `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Must match every contained section |
 | `choose` | `choose` | `integer` | Yes | At least `0`; no greater than section count |
 | `sections` | `sections` | `Section[]` | Yes | May be empty only when `choose` is `0` |
+
+The complete `choose` rule is `0 <= choose <= sections.length`. Therefore:
+
+- `choose: 0` is valid for an empty or non-empty group.
+- A positive `choose` requires at least that many sections.
+- `choose` greater than `sections.length` is invalid.
+- Every contained section's `type` must equal the group `type`.
 
 ```json
 {
@@ -176,6 +184,8 @@ Preference rules:
   least `minimumLongGapMinutes`. Other gaps receive a ranking penalty.
 - A fixed section must exist in the named course. A fixed non-open section is
   incompatible with `requireOpenSections: true` and makes the request invalid.
+- Every key in `fixedSections` must exactly match a `courseCode` in the same
+  request, and every listed section ID must exist inside that course.
 
 ```json
 {
@@ -261,3 +271,19 @@ and `section` fields. `section` uses the same `Section` contract defined above.
 
 An empty successful result uses `schedules: []` and `count: 0`. Structurally
 invalid or contradictory requests use FastAPI's HTTP `422` validation response.
+
+## Week 2 Completion Standard
+
+The Week 2 data-contract milestone is complete when:
+
+- All core request and response objects have Pydantic models in
+  `backend/app/models.py`.
+- The README example and `sample-data/courses.json` validate as
+  `GenerateScheduleRequest`.
+- The documented empty response validates as `GenerateScheduleResponse`.
+- Tests cover valid input, invalid weekdays, malformed times, invalid time
+  ranges, invalid `choose` values, and missing fixed courses or sections.
+- `cd backend && pytest` passes without failures.
+
+Any future contract change must update the Pydantic models, this document, the
+README examples, the sample fixture, and validation tests in the same change.

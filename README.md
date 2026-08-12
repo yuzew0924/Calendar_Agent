@@ -175,6 +175,26 @@ example are documented in [`docs/input-format.md`](docs/input-format.md).
 The complete two-course development fixture, including open and closed sections,
 is available in [`sample-data/courses.json`](sample-data/courses.json).
 
+### Request Rules
+
+- `courses` is required and must contain at least one course. `courseCode` values
+  must be unique within the request.
+- JSON uses `camelCase`. Unknown fields are rejected by the backend models.
+- `days` only accepts `M`, `T`, `W`, `Th`, and `F`.
+- `startTime`, `endTime`, and `earliestStart` use strict 24-hour `HH:MM`, such
+  as `09:30`. Every meeting must satisfy `startTime < endTime`.
+- A section group's `choose` value must be an integer from `0` through
+  `sections.length`. Every section in the group must have the same `type` as the
+  group. Empty `sections` is valid only with `choose: 0`.
+- `fixedSections` maps an existing `courseCode` to existing section IDs in that
+  course. When `requireOpenSections` is `true`, every fixed section must also be
+  `open`.
+- `allowedGapMinutes` and `minimumLongGapMinutes` must be non-negative when set.
+
+The source of truth is
+[`backend/app/models.py`](backend/app/models.py), with the full field table in
+[`docs/input-format.md`](docs/input-format.md).
+
 ## Example Response
 
 ```json
@@ -306,6 +326,20 @@ Testing should cover:
 - Schedule ranking.
 - API request and response validation.
 - Calendar rendering behavior.
+
+## Week 2 Completion
+
+Week 2 is complete when all of the following remain true:
+
+- `Meeting`, `Section`, `SectionGroup`, `Course`, `Preferences`,
+  `GenerateScheduleRequest`, and `GenerateScheduleResponse` are implemented as
+  Pydantic models.
+- The README request and response JSON examples parse through those models.
+- `sample-data/courses.json` contains reusable valid course data with open and
+  closed sections.
+- Invalid weekdays, time formats, time ranges, group selection counts, and fixed
+  sections produce validation errors.
+- Running `cd backend && pytest` passes the complete backend test suite.
 
 ## Known Issues / Limitations
 
