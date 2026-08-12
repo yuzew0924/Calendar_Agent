@@ -221,10 +221,12 @@ calendar-agent/
 │   ├── app/
 │   │   ├── __init__.py
 │   │   ├── main.py
-│   │   └── models.py
+│   │   ├── models.py
+│   │   └── normalization.py
 │   └── tests/
 │       ├── test_health.py
 │       ├── test_models.py
+│       ├── test_normalization.py
 │       └── test_validation.py
 └── sample-data/
     └── courses.json

@@ -18,6 +18,10 @@ Course components are defined only by each course's explicit `groups`; parsing
 never adds an absent quiz, lab, or other component. `ParsedPreferences` is the
 internal normalized preference model.
 
+Weekday and time normalization is centralized in `app/normalization.py`.
+Scheduling algorithms compare `Weekday` values and integer minutes since
+midnight rather than raw input strings.
+
 ## Setup
 
 ```bash

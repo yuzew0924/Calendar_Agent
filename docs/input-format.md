@@ -128,6 +128,22 @@ Day codes support exactly `M`, `T`, `W`, `Th`, and `F`. Full weekday names,
 weekends, `TH`, and other variants are invalid. Every meeting must satisfy
 `startTime < endTime`.
 
+### Algorithm Normalization
+
+`backend/app/normalization.py` is the single normalization path used by models
+and future scheduling algorithms:
+
+| Input | Normalized value |
+|---|---|
+| `M`, `T`, `W`, `Th`, `F` | Ordered `Weekday` values `0`, `1`, `2`, `3`, `4` |
+| `09:30` | `570` minutes since midnight |
+| `13:20` | `800` minutes since midnight |
+
+`normalize_meeting()` expands a recurring Meeting into one
+`NormalizedMeeting(weekday, start_minute, end_minute)` per day. Conflict and gap
+logic must consume these numeric intervals rather than compare weekday or time
+strings directly.
+
 ## Section
 
 | JSON field | Python field | Type | Required | Validation |

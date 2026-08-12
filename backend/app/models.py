@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from datetime import time
 from enum import Enum
 from typing import Self
@@ -14,8 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-
-TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+from .normalization import DayCode, parse_time_string
 
 
 def to_camel(value: str) -> str:
@@ -30,14 +28,6 @@ class APIModel(BaseModel):
         populate_by_name=True,
         str_strip_whitespace=True,
     )
-
-
-class DayCode(str, Enum):
-    MONDAY = "M"
-    TUESDAY = "T"
-    WEDNESDAY = "W"
-    THURSDAY = "Th"
-    FRIDAY = "F"
 
 
 class SectionStatus(str, Enum):
@@ -70,9 +60,7 @@ class Meeting(APIModel):
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
     def validate_time_format(cls, value: object) -> object:
-        if isinstance(value, str) and TIME_PATTERN.fullmatch(value) is None:
-            raise ValueError("time must use 24-hour HH:MM format")
-        return value
+        return parse_time_string(value) if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def validate_time_range(self) -> Self:
@@ -181,9 +169,7 @@ class ParsedPreferences(APIModel):
     @field_validator("earliest_start", mode="before")
     @classmethod
     def validate_earliest_start_format(cls, value: object) -> object:
-        if isinstance(value, str) and TIME_PATTERN.fullmatch(value) is None:
-            raise ValueError("time must use 24-hour HH:MM format")
-        return value
+        return parse_time_string(value) if isinstance(value, str) else value
 
     @field_validator("fixed_sections")
     @classmethod
