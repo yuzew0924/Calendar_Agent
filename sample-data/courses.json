@@ -1,59 +1,36 @@
 {
   "courses": [
     {
-      "courseCode": "CSE 414",
-      "title": "Database Systems",
-      "sectionGroups": [
+      "code": "CSE 373",
+      "title": "Data Structures and Algorithms",
+      "groups": [
         {
           "type": "lecture",
           "choose": 1,
           "sections": [
             {
               "id": "A",
-              "type": "lecture",
+              "status": "open",
+              "sln": "12301",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "startTime": "09:30",
+                  "endTime": "10:20",
+                  "location": "KNE 120"
+                }
+              ]
+            },
+            {
+              "id": "B",
               "status": "closed",
-              "sln": "13221",
+              "sln": "12302",
               "meetings": [
                 {
                   "days": ["M", "W", "F"],
                   "startTime": "10:30",
                   "endTime": "11:20",
-                  "location": "EEB 105"
-                }
-              ]
-            },
-            {
-              "id": "C",
-              "type": "lecture",
-              "status": "open",
-              "sln": "13227",
-              "meetings": [
-                {
-                  "days": ["M", "W", "F"],
-                  "startTime": "12:30",
-                  "endTime": "13:20",
-                  "location": "EEB 125"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "type": "quiz",
-          "choose": 1,
-          "sections": [
-            {
-              "id": "CD",
-              "type": "quiz",
-              "status": "open",
-              "sln": "13231",
-              "requiredSectionIds": ["C"],
-              "meetings": [
-                {
-                  "days": ["Th"],
-                  "startTime": "14:30",
-                  "endTime": "15:20",
-                  "location": "LOW 101"
+                  "location": "KNE 120"
                 }
               ]
             }
@@ -62,22 +39,78 @@
       ]
     },
     {
-      "courseCode": "CSE 332",
-      "title": "Data Structures and Parallelism",
-      "sectionGroups": [
+      "code": "CHEM 142",
+      "title": "General Chemistry",
+      "groups": [
         {
           "type": "lecture",
           "choose": 1,
           "sections": [
             {
-              "id": "B",
-              "type": "lecture",
+              "id": "A",
               "status": "open",
               "meetings": [
                 {
                   "days": ["M", "W", "F"],
-                  "startTime": "15:30",
-                  "endTime": "16:20"
+                  "startTime": "11:30",
+                  "endTime": "12:20",
+                  "location": "KNE 130"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "lab",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "AL",
+              "status": "open",
+              "requiredSectionIds": ["A"],
+              "meetings": [
+                {
+                  "days": ["T"],
+                  "startTime": "13:30",
+                  "endTime": "15:20",
+                  "location": "BAG 260"
+                }
+              ]
+            },
+            {
+              "id": "BL",
+              "status": "open",
+              "requiredSectionIds": ["A"],
+              "meetings": [
+                {
+                  "days": ["Th"],
+                  "startTime": "13:30",
+                  "endTime": "15:20",
+                  "location": "BAG 260"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "BIOL 180",
+      "title": "Introductory Biology",
+      "groups": [
+        {
+          "type": "lecture",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "A",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "startTime": "12:30",
+                  "endTime": "13:20",
+                  "location": "HCK 132"
                 }
               ]
             }
@@ -88,15 +121,34 @@
           "choose": 1,
           "sections": [
             {
-              "id": "BC",
-              "type": "quiz",
+              "id": "AA",
               "status": "open",
-              "requiredSectionIds": ["B"],
+              "requiredSectionIds": ["A"],
+              "meetings": [
+                {
+                  "days": ["T"],
+                  "startTime": "10:30",
+                  "endTime": "11:20",
+                  "location": "HCK 320"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "lab",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "AB",
+              "status": "open",
+              "requiredSectionIds": ["A"],
               "meetings": [
                 {
                   "days": ["Th"],
                   "startTime": "15:30",
-                  "endTime": "16:20"
+                  "endTime": "17:20",
+                  "location": "HCK 344"
                 }
               ]
             }
@@ -107,12 +159,12 @@
   ],
   "preferences": {
     "earliestStart": "09:30",
-    "allowEarlierIfOnlyOption": true,
+    "allowEarlierIfOnlyOption": false,
     "allowedGapMinutes": 90,
     "minimumLongGapMinutes": 120,
     "requireOpenSections": true,
     "fixedSections": {
-      "CSE 414": ["C", "CD"]
+      "CSE 373": ["A"]
     }
   }
 }

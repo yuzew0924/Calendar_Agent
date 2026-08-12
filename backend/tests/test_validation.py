@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.models import GenerateScheduleRequest, Meeting, SectionGroup
+from app.models import Meeting, ScheduleRequest, Section, SectionGroup
 
 
 SAMPLE_DATA_PATH = Path(__file__).resolve().parents[2] / "sample-data" / "courses.json"
@@ -17,15 +17,15 @@ def valid_request_data() -> dict[str, object]:
 
 
 def test_valid_sample_input_passes(valid_request_data: dict[str, object]) -> None:
-    request = GenerateScheduleRequest.model_validate(valid_request_data)
+    request = ScheduleRequest.model_validate(valid_request_data)
     statuses = {
         section.status.value
         for course in request.courses
-        for group in course.section_groups
+        for group in course.groups
         for section in group.sections
     }
 
-    assert len(request.courses) == 2
+    assert len(request.courses) == 3
     assert {"open", "closed"}.issubset(statuses)
 
 
@@ -64,10 +64,10 @@ def test_start_time_after_end_time_fails() -> None:
 
 def test_unknown_fixed_section_fails(valid_request_data: dict[str, object]) -> None:
     invalid_request = deepcopy(valid_request_data)
-    invalid_request["preferences"]["fixedSections"] = {"CSE 414": ["missing"]}
+    invalid_request["preferences"]["fixedSections"] = {"CSE 373": ["missing"]}
 
     with pytest.raises(ValidationError, match="fixed section does not exist"):
-        GenerateScheduleRequest.model_validate(invalid_request)
+        ScheduleRequest.model_validate(invalid_request)
 
 
 def test_invalid_section_group_choose_fails() -> None:
@@ -79,10 +79,38 @@ def test_invalid_section_group_choose_fails() -> None:
                 "sections": [
                     {
                         "id": "AA",
-                        "type": "quiz",
                         "status": "open",
                         "meetings": [],
                     }
                 ],
             }
         )
+
+
+def test_group_can_choose_multiple_sections() -> None:
+    group = SectionGroup.model_validate(
+        {
+            "type": "lab",
+            "choose": 2,
+            "sections": [
+                {"id": "AL", "status": "open", "meetings": []},
+                {"id": "BL", "status": "open", "meetings": []},
+                {"id": "CL", "status": "closed", "meetings": []},
+            ],
+        }
+    )
+
+    assert group.choose == 2
+    assert len(group.sections) == 3
+
+
+@pytest.mark.parametrize(
+    "section_data",
+    [
+        {"id": "a-a", "status": "open", "meetings": []},
+        {"id": "AA", "status": "waitlisted", "meetings": []},
+    ],
+)
+def test_invalid_section_id_or_status_fails(section_data: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        Section.model_validate(section_data)

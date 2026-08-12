@@ -86,8 +86,7 @@ class Meeting(APIModel):
 
 
 class Section(APIModel):
-    id: str = Field(min_length=1)
-    type: SectionType
+    id: str = Field(min_length=1, pattern=r"^[A-Z0-9]+$")
     status: SectionStatus
     sln: str | None = None
     meetings: list[Meeting]
@@ -118,30 +117,28 @@ class SectionGroup(APIModel):
     def validate_group(self) -> Self:
         if self.choose > len(self.sections):
             raise ValueError("choose cannot exceed the number of sections")
-        if any(section.type is not self.type for section in self.sections):
-            raise ValueError("every section type must match its group type")
         return self
 
 
 class Course(APIModel):
-    course_code: str = Field(min_length=1)
-    title: str = Field(min_length=1)
-    section_groups: list[SectionGroup]
+    code: str = Field(min_length=1)
+    groups: list[SectionGroup] = Field(min_length=1)
+    title: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def validate_groups_and_dependencies(self) -> Self:
-        group_types = [group.type for group in self.section_groups]
+        group_types = [group.type for group in self.groups]
         if len(group_types) != len(set(group_types)):
             raise ValueError("section group types must be unique within a course")
 
         sections: dict[str, Section] = {}
         section_types: dict[str, SectionType] = {}
-        for group in self.section_groups:
+        for group in self.groups:
             for section in group.sections:
                 if section.id in sections:
                     raise ValueError("section IDs must be unique within a course")
                 sections[section.id] = section
-                section_types[section.id] = section.type
+                section_types[section.id] = group.type
 
         for section in sections.values():
             for required_id in section.required_section_ids:
@@ -149,7 +146,7 @@ class Course(APIModel):
                     raise ValueError(
                         f"section {section.id} requires unknown section {required_id}"
                     )
-                if section_types[required_id] is section.type:
+                if section_types[required_id] is section_types[section.id]:
                     raise ValueError("section dependencies must reference another group")
 
         visiting: set[str] = set()
@@ -173,7 +170,7 @@ class Course(APIModel):
         return self
 
 
-class Preferences(APIModel):
+class ParsedPreferences(APIModel):
     earliest_start: time | None = None
     allow_earlier_if_only_option: bool = False
     allowed_gap_minutes: int | None = Field(default=None, ge=0)
@@ -207,23 +204,23 @@ class Preferences(APIModel):
         return value.strftime("%H:%M") if value is not None else None
 
 
-class GenerateScheduleRequest(APIModel):
+class ScheduleRequest(APIModel):
     courses: list[Course] = Field(min_length=1)
-    preferences: Preferences = Field(default_factory=Preferences)
+    preferences: ParsedPreferences = Field(default_factory=ParsedPreferences)
 
     @model_validator(mode="after")
     def validate_courses_and_fixed_sections(self) -> Self:
-        course_codes = [course.course_code for course in self.courses]
+        course_codes = [course.code for course in self.courses]
         if len(course_codes) != len(set(course_codes)):
             raise ValueError("course codes must be unique within a request")
 
         available_sections: dict[str, dict[str, Section]] = {}
         for course in self.courses:
             course_sections: dict[str, Section] = {}
-            for group in course.section_groups:
+            for group in course.groups:
                 for section in group.sections:
                     course_sections[section.id] = section
-            available_sections[course.course_code] = course_sections
+            available_sections[course.code] = course_sections
 
         for course_code, section_ids in self.preferences.fixed_sections.items():
             course_sections = available_sections.get(course_code)
@@ -282,3 +279,9 @@ class GenerateScheduleResponse(APIModel):
             raise ValueError("schedules must be ordered with consecutive ranks")
 
         return self
+
+
+# Compatibility aliases for existing callers while the API migrates to the
+# canonical Week 2 names above.
+Preferences = ParsedPreferences
+GenerateScheduleRequest = ScheduleRequest

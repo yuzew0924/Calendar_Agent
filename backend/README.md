@@ -12,9 +12,11 @@ Responsibilities:
 - Schedule scoring.
 - Future OCR or AI-assisted course extraction.
 
-The request and response schemas are centralized in `app/models.py`. The models
-accept the documented camelCase JSON fields while exposing snake_case Python
-attributes.
+The schemas are centralized in `app/models.py`. `ScheduleRequest` accepts the
+documented camelCase JSON fields while exposing snake_case Python attributes.
+Course components are defined only by each course's explicit `groups`; parsing
+never adds an absent quiz, lab, or other component. `ParsedPreferences` is the
+internal normalized preference model.
 
 ## Setup
 

@@ -8,10 +8,10 @@ from pydantic import ValidationError
 
 from app.models import (
     Course,
-    GenerateScheduleRequest,
     GenerateScheduleResponse,
     Meeting,
-    Preferences,
+    ParsedPreferences,
+    ScheduleRequest,
     Section,
     SectionGroup,
 )
@@ -86,7 +86,6 @@ def test_section_can_contain_multiple_meetings() -> None:
     section = Section.model_validate(
         {
             "id": "A",
-            "type": "lecture",
             "status": "open",
             "sln": "12345",
             "meetings": [
@@ -115,7 +114,6 @@ def test_section_group_accepts_valid_choose_count() -> None:
             "sections": [
                 {
                     "id": "AA",
-                    "type": "quiz",
                     "status": "open",
                     "meetings": [],
                 }
@@ -137,30 +135,12 @@ def test_section_group_rejects_choose_above_section_count() -> None:
         SectionGroup(type="quiz", choose=1, sections=[])
 
 
-def test_section_group_rejects_mismatched_section_type() -> None:
-    with pytest.raises(ValidationError, match="section type must match"):
-        SectionGroup.model_validate(
-            {
-                "type": "quiz",
-                "choose": 1,
-                "sections": [
-                    {
-                        "id": "A",
-                        "type": "lecture",
-                        "status": "open",
-                        "meetings": [],
-                    }
-                ],
-            }
-        )
-
-
 def test_course_can_contain_multiple_section_groups() -> None:
     course = Course.model_validate(
         {
-            "courseCode": "CSE 123",
+            "code": "CSE 123",
             "title": "Computer Programming III",
-            "sectionGroups": [
+            "groups": [
                 {"type": "lecture", "choose": 0, "sections": []},
                 {"type": "quiz", "choose": 0, "sections": []},
                 {"type": "lab", "choose": 0, "sections": []},
@@ -168,11 +148,11 @@ def test_course_can_contain_multiple_section_groups() -> None:
         }
     )
 
-    assert len(course.section_groups) == 3
+    assert len(course.groups) == 3
 
 
 def test_preferences_accept_documented_fields() -> None:
-    preferences = Preferences.model_validate(
+    preferences = ParsedPreferences.model_validate(
         {
             "earliestStart": "09:30",
             "allowEarlierIfOnlyOption": True,
@@ -192,7 +172,7 @@ def test_preferences_accept_documented_fields() -> None:
 @pytest.mark.parametrize("invalid_time", ["9:30", "09:30:00", "24:00", "09:60"])
 def test_preferences_reject_invalid_earliest_start(invalid_time: str) -> None:
     with pytest.raises(ValidationError, match="24-hour HH:MM format"):
-        Preferences.model_validate({"earliestStart": invalid_time})
+        ParsedPreferences.model_validate({"earliestStart": invalid_time})
 
 
 @pytest.mark.parametrize(
@@ -200,7 +180,7 @@ def test_preferences_reject_invalid_earliest_start(invalid_time: str) -> None:
 )
 def test_preferences_reject_negative_gap_values(field_name: str) -> None:
     with pytest.raises(ValidationError):
-        Preferences.model_validate({field_name: -1})
+        ParsedPreferences.model_validate({field_name: -1})
 
 
 def test_request_rejects_unknown_fixed_course(
@@ -210,34 +190,78 @@ def test_request_rejects_unknown_fixed_course(
     invalid_request["preferences"]["fixedSections"] = {"CSE 999": ["A"]}
 
     with pytest.raises(ValidationError, match="fixed section course does not exist"):
-        GenerateScheduleRequest.model_validate(invalid_request)
+        ScheduleRequest.model_validate(invalid_request)
 
 
 def test_request_rejects_unknown_fixed_section(
     sample_request_data: dict[str, object],
 ) -> None:
     invalid_request = deepcopy(sample_request_data)
-    invalid_request["preferences"]["fixedSections"] = {"CSE 414": ["missing"]}
+    invalid_request["preferences"]["fixedSections"] = {"CSE 373": ["missing"]}
 
     with pytest.raises(ValidationError, match="fixed section does not exist"):
-        GenerateScheduleRequest.model_validate(invalid_request)
+        ScheduleRequest.model_validate(invalid_request)
 
 
 def test_sample_data_matches_request_model(sample_request_data: dict[str, object]) -> None:
-    request = GenerateScheduleRequest.model_validate(sample_request_data)
+    request = ScheduleRequest.model_validate(sample_request_data)
 
-    assert len(request.courses) == 2
+    assert len(request.courses) == 3
     assert request.preferences.earliest_start is not None
 
 
-def test_request_accepts_course_with_empty_section_groups() -> None:
-    request = GenerateScheduleRequest.model_validate(
+def test_sample_covers_group_driven_course_structures(
+    sample_request_data: dict[str, object],
+) -> None:
+    request = ScheduleRequest.model_validate(sample_request_data)
+    component_types = {
+        course.code: [group.type.value for group in course.groups]
+        for course in request.courses
+    }
+
+    assert component_types["CSE 373"] == ["lecture"]
+    assert component_types["CHEM 142"] == ["lecture", "lab"]
+    assert component_types["BIOL 180"] == ["lecture", "quiz", "lab"]
+
+
+def test_parsing_does_not_add_missing_components() -> None:
+    course = Course.model_validate(
+        {
+            "code": "CSE 373",
+            "groups": [
+                {
+                    "type": "lecture",
+                    "choose": 1,
+                    "sections": [
+                        {"id": "A", "status": "open", "meetings": []}
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert [group.type.value for group in course.groups] == ["lecture"]
+
+
+def test_request_accepts_lecture_only_course() -> None:
+    request = ScheduleRequest.model_validate(
         {
             "courses": [
                 {
-                    "courseCode": "CSE 123",
-                    "title": "Computer Programming III",
-                    "sectionGroups": [],
+                    "code": "CSE 373",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "choose": 1,
+                            "sections": [
+                                {
+                                    "id": "A",
+                                    "status": "open",
+                                    "meetings": [],
+                                }
+                            ],
+                        }
+                    ],
                 }
             ],
             "preferences": {
@@ -251,28 +275,28 @@ def test_request_accepts_course_with_empty_section_groups() -> None:
         }
     )
 
-    assert request.courses[0].section_groups == []
+    assert [group.type.value for group in request.courses[0].groups] == ["lecture"]
 
 
 def test_request_rejects_empty_courses() -> None:
     with pytest.raises(ValidationError):
-        GenerateScheduleRequest.model_validate({"courses": [], "preferences": {}})
+        ScheduleRequest.model_validate({"courses": [], "preferences": {}})
 
 
 def test_request_applies_nested_meeting_validation(
     sample_request_data: dict[str, object],
 ) -> None:
     invalid_request = deepcopy(sample_request_data)
-    invalid_request["courses"][0]["sectionGroups"][0]["sections"][0][
+    invalid_request["courses"][0]["groups"][0]["sections"][0][
         "meetings"
     ][0]["days"] = ["Saturday"]
 
     with pytest.raises(ValidationError):
-        GenerateScheduleRequest.model_validate(invalid_request)
+        ScheduleRequest.model_validate(invalid_request)
 
 
 def test_request_schema_uses_documented_json_names() -> None:
-    properties = GenerateScheduleRequest.model_json_schema(by_alias=True)["properties"]
+    properties = ScheduleRequest.model_json_schema(by_alias=True)["properties"]
 
     assert set(properties) == {"courses", "preferences"}
 
@@ -282,7 +306,7 @@ def test_core_model_schemas_use_documented_fields() -> None:
     section_schema = Section.model_json_schema(by_alias=True)
     group_schema = SectionGroup.model_json_schema(by_alias=True)
     course_schema = Course.model_json_schema(by_alias=True)
-    preferences_schema = Preferences.model_json_schema(by_alias=True)
+    preferences_schema = ParsedPreferences.model_json_schema(by_alias=True)
 
     assert set(meeting_schema["properties"]) == {
         "days",
@@ -293,15 +317,14 @@ def test_core_model_schemas_use_documented_fields() -> None:
     assert set(meeting_schema["required"]) == {"days", "startTime", "endTime"}
     assert set(section_schema["required"]) == {
         "id",
-        "type",
         "status",
         "meetings",
     }
     assert set(group_schema["properties"]) == {"type", "choose", "sections"}
     assert set(course_schema["properties"]) == {
-        "courseCode",
+        "code",
         "title",
-        "sectionGroups",
+        "groups",
     }
     assert set(preferences_schema["properties"]) == {
         "earliestStart",
@@ -318,12 +341,12 @@ def test_unknown_section_dependency_is_rejected(
 ) -> None:
     invalid_request = deepcopy(sample_request_data)
     courses = invalid_request["courses"]
-    courses[0]["sectionGroups"][1]["sections"][0]["requiredSectionIds"] = [
+    courses[1]["groups"][1]["sections"][0]["requiredSectionIds"] = [
         "missing"
     ]
 
     with pytest.raises(ValidationError, match="requires unknown section missing"):
-        GenerateScheduleRequest.model_validate(invalid_request)
+        ScheduleRequest.model_validate(invalid_request)
 
 
 def test_generate_response_accepts_empty_scaffold() -> None:
@@ -352,7 +375,6 @@ def test_generate_response_uses_typed_schedules() -> None:
                             "groupType": "lecture",
                             "section": {
                                 "id": "C",
-                                "type": "lecture",
                                 "status": "open",
                                 "meetings": [
                                     {
@@ -387,7 +409,7 @@ def test_models_can_be_used_as_fastapi_schemas() -> None:
 
     @api.post("/generate", response_model=GenerateScheduleResponse)
     def generate_schedules(
-        request: GenerateScheduleRequest,
+        request: ScheduleRequest,
     ) -> GenerateScheduleResponse:
         return GenerateScheduleResponse(schedules=[], count=0)
 
@@ -397,5 +419,5 @@ def test_models_can_be_used_as_fastapi_schemas() -> None:
         "schema"
     ]
 
-    assert request_schema["$ref"].endswith("/GenerateScheduleRequest")
+    assert request_schema["$ref"].endswith("/ScheduleRequest")
     assert response_schema["$ref"].endswith("/GenerateScheduleResponse")

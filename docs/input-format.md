@@ -1,289 +1,236 @@
-# API Data Contract
+# Course Schema and Validation
 
-This document is the canonical JSON contract for schedule generation. JSON field
-names use `camelCase`. The Pydantic models in `backend/app/models.py` use
-`snake_case` attributes with these JSON names as aliases.
+This document is the canonical Week 2 input contract. Public JSON uses
+`camelCase`; Python attributes use `snake_case`. The implementation lives in
+`backend/app/models.py`.
 
-## Object Relationships
+**Week 2 dates:** 2026-08-17 to 2026-08-23
+
+**Goal:** Accurately represent different course structures through explicit
+groups and reject invalid nested data before schedule generation.
+
+## Request Shape
 
 ```text
-GenerateScheduleRequest
+ScheduleRequest
 ├── courses[]: Course
-│   └── sectionGroups[]: SectionGroup
+│   └── groups[]: SectionGroup
 │       └── sections[]: Section
 │           └── meetings[]: Meeting
-└── preferences: Preferences
-
-GenerateScheduleResponse
-└── schedules[]
-    └── selections[]
-        └── section: Section
+└── preferences: ParsedPreferences
 ```
-
-A request contains every course the user wants in one generated schedule. Each
-course code must be unique within the request. For every `SectionGroup`, the
-generator selects exactly `choose` sections. It then combines those selections
-across courses, enforces section dependencies and fixed sections, rejects time
-conflicts, and ranks the remaining schedules.
-
-## Shared Conventions
-
-- Times use strict local 24-hour `HH:MM` strings.
-- `startTime` must be earlier than `endTime`.
-- Day codes support exactly `M`, `T`, `W`, `Th`, and `F`. Full weekday names,
-  weekends, and variants such as `TH` are invalid.
-- IDs are case-sensitive strings and must be unique within their documented scope.
-- Required arrays may not be omitted, but `meetings` and `sections` may be empty.
-- Optional nullable fields may be omitted or set to `null`.
-- Unknown JSON fields are rejected so input mistakes are visible.
-
-## Meeting
-
-A `Meeting` is one recurring time block for a section. A section with different
-times on different days uses multiple meetings.
-
-| JSON field | Python field | Type | Required | Rules |
-|---|---|---|---|---|
-| `days` | `days` | `DayCode[]` | Yes | Non-empty; no duplicate days |
-| `startTime` | `start_time` | `time` as `HH:MM` | Yes | Must be before `endTime` |
-| `endTime` | `end_time` | `time` as `HH:MM` | Yes | Must be after `startTime` |
-| `location` | `location` | `string \| null` | No | Defaults to `null` |
 
 ```json
 {
-  "days": ["M", "W", "F"],
-  "startTime": "09:30",
-  "endTime": "10:20",
-  "location": "KNE 120"
-}
-```
-
-## Section
-
-A `Section` is one selectable lecture, quiz, lab, or discussion section.
-
-| JSON field | Python field | Type | Required | Rules |
-|---|---|---|---|---|
-| `id` | `id` | `string` | Yes | Non-empty; unique within a course |
-| `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Must match its group type |
-| `status` | `status` | `open \| closed \| unknown` | Yes | Availability at input time |
-| `sln` | `sln` | `string \| null` | No | Registration identifier; defaults to `null` |
-| `meetings` | `meetings` | `Meeting[]` | Yes | May be empty for an unscheduled or asynchronous section |
-| `requiredSectionIds` | `required_section_ids` | `string[]` | No | Defaults to `[]`; referenced sections must also be selected |
-
-`requiredSectionIds` captures linked-section rules without relying on section-name
-patterns. For example, quiz `CD` can require lecture `C`. Every referenced ID
-must exist in another group of the same course. Cyclic dependencies are invalid.
-
-```json
-{
-  "id": "AA",
-  "type": "quiz",
-  "status": "open",
-  "sln": "12345",
-  "requiredSectionIds": ["A"],
-  "meetings": [
+  "courses": [
     {
-      "days": ["Th"],
-      "startTime": "09:30",
-      "endTime": "10:20",
-      "location": "LOW 101"
+      "code": "CSE 373",
+      "groups": [
+        {
+          "type": "lecture",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "A",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "startTime": "09:30",
+                  "endTime": "10:20"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
-  ]
-}
-```
-
-## SectionGroup
-
-A `SectionGroup` contains sections of one type and defines how many must be
-selected.
-
-| JSON field | Python field | Type | Required | Rules |
-|---|---|---|---|---|
-| `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Must match every contained section |
-| `choose` | `choose` | `integer` | Yes | At least `0`; no greater than section count |
-| `sections` | `sections` | `Section[]` | Yes | May be empty only when `choose` is `0` |
-
-The complete `choose` rule is `0 <= choose <= sections.length`. Therefore:
-
-- `choose: 0` is valid for an empty or non-empty group.
-- A positive `choose` requires at least that many sections.
-- `choose` greater than `sections.length` is invalid.
-- Every contained section's `type` must equal the group `type`.
-
-```json
-{
-  "type": "quiz",
-  "choose": 1,
-  "sections": [
-    {
-      "id": "AA",
-      "type": "quiz",
-      "status": "open",
-      "sln": "12345",
-      "meetings": []
+  ],
+  "preferences": {
+    "earliestStart": "09:30",
+    "requireOpenSections": true,
+    "fixedSections": {
+      "CSE 373": ["A"]
     }
-  ]
-}
-```
-
-## Course
-
-A `Course` contains every candidate section group for one requested course.
-
-| JSON field | Python field | Type | Required | Rules |
-|---|---|---|---|---|
-| `courseCode` | `course_code` | `string` | Yes | Non-empty; unique within the request |
-| `title` | `title` | `string` | Yes | Non-empty display name |
-| `sectionGroups` | `section_groups` | `SectionGroup[]` | Yes | May be empty; populated group types must be unique |
-
-All section IDs must be unique across a course. This makes fixed selections and
-section dependencies unambiguous.
-
-```json
-{
-  "courseCode": "CSE 123",
-  "title": "Computer Programming III",
-  "sectionGroups": [
-    {
-      "type": "lecture",
-      "choose": 0,
-      "sections": []
-    },
-    {
-      "type": "quiz",
-      "choose": 0,
-      "sections": []
-    }
-  ]
-}
-```
-
-## Preferences
-
-Every preference field is optional. Omitting `preferences` from the request uses
-all defaults shown below.
-
-| JSON field | Python field | Type | Default | Meaning |
-|---|---|---|---|---|
-| `earliestStart` | `earliest_start` | `HH:MM \| null` | `null` | Preferred earliest class start; disabled when `null` |
-| `allowEarlierIfOnlyOption` | `allow_earlier_if_only_option` | `boolean` | `false` | Permit earlier classes only when no schedule satisfies `earliestStart` |
-| `allowedGapMinutes` | `allowed_gap_minutes` | `integer \| null` | `null` | Maximum ordinary gap that receives no penalty |
-| `minimumLongGapMinutes` | `minimum_long_gap_minutes` | `integer \| null` | `null` | Gaps at or above this value receive no penalty |
-| `requireOpenSections` | `require_open_sections` | `boolean` | `true` | Exclude `closed` and `unknown` sections when true |
-| `fixedSections` | `fixed_sections` | `object<string, string[]>` | `{}` | Course codes mapped to section IDs every option must include |
-
-Preference rules:
-
-- Gap values are non-negative minutes when provided.
-- When `earliestStart` is set and `allowEarlierIfOnlyOption` is `false`, the
-  earliest time is a hard constraint.
-- When `allowEarlierIfOnlyOption` is `true`, schedules meeting `earliestStart`
-  are considered first; earlier schedules are considered only if none exist.
-- A gap is preferred when it is no greater than `allowedGapMinutes` or is at
-  least `minimumLongGapMinutes`. Other gaps receive a ranking penalty.
-- A fixed section must exist in the named course. A fixed non-open section is
-  incompatible with `requireOpenSections: true` and makes the request invalid.
-- Every key in `fixedSections` must exactly match a `courseCode` in the same
-  request, and every listed section ID must exist inside that course.
-
-```json
-{
-  "earliestStart": "09:30",
-  "allowEarlierIfOnlyOption": true,
-  "allowedGapMinutes": 90,
-  "minimumLongGapMinutes": 120,
-  "requireOpenSections": true,
-  "fixedSections": {
-    "CSE 123": ["A", "AA"]
   }
 }
 ```
 
-## GenerateScheduleRequest
+Unknown fields are rejected. The `courses` array must contain at least one
+course, and course codes must be unique within a request.
 
-| JSON field | Python field | Type | Required | Rules |
-|---|---|---|---|---|
-| `courses` | `courses` | `Course[]` | Yes | Non-empty; unique course codes |
-| `preferences` | `preferences` | `Preferences` | No | Defaults to an empty/default preferences object |
+## Group-Driven Components
 
-The complete request example is maintained in `README.md` and
-`sample-data/courses.json`.
+The `groups` array is the only source of course components. The backend does not
+infer or add lecture, quiz, lab, or discussion groups.
 
-## GenerateScheduleResponse
+- A lecture-only course contains only a `lecture` group.
+- A lecture+lab course contains `lecture` and `lab` groups.
+- A lecture+quiz+lab course contains all three groups.
+- If no lab group is present, no lab is processed or generated.
 
-The response is self-contained: each selected section includes its meetings so
-the frontend can render a calendar without joining against the request.
-
-| JSON field | Python field | Type | Required | Rules |
-|---|---|---|---|---|
-| `schedules` | `schedules` | `ScheduleOption[]` | Yes | Ranked best-first; may be empty |
-| `count` | `count` | `integer` | Yes | Must equal the number of returned schedules |
-| `warnings` | `warnings` | `string[]` | No | Defaults to `[]`; request-level notices |
-
-Each response-only `ScheduleOption` contains:
-
-| Field | Type | Required | Meaning |
-|---|---|---|---|
-| `id` | `string` | Yes | Stable option identifier within the response |
-| `rank` | `integer` | Yes | One-based rank |
-| `score` | `number` | Yes | Normalized score from `0` to `100` |
-| `selections` | `SelectedSection[]` | Yes | One record per selected section |
-| `reasons` | `string[]` | No | Defaults to `[]`; positive ranking explanations |
-| `warnings` | `string[]` | No | Defaults to `[]`; option-specific tradeoffs |
-
-Each response-only `SelectedSection` contains required `courseCode`, `groupType`,
-and `section` fields. `section` uses the same `Section` contract defined above.
+A valid lecture-only structure:
 
 ```json
 {
-  "schedules": [
+  "code": "CSE 373",
+  "groups": [
     {
-      "id": "option-1",
-      "rank": 1,
-      "score": 94,
-      "selections": [
+      "type": "lecture",
+      "choose": 1,
+      "sections": [
         {
-          "courseCode": "CSE 414",
-          "groupType": "lecture",
-          "section": {
-            "id": "C",
-            "type": "lecture",
-            "status": "open",
-            "meetings": [
-              {
-                "days": ["M", "W", "F"],
-                "startTime": "12:30",
-                "endTime": "13:20"
-              }
-            ]
-          }
+          "id": "A",
+          "status": "open",
+          "meetings": []
         }
-      ],
-      "reasons": ["No conflicts", "Short gaps"],
-      "warnings": []
+      ]
     }
-  ],
-  "count": 1,
+  ]
+}
+```
+
+A valid lecture+lab structure:
+
+```json
+{
+  "code": "CHEM 142",
+  "groups": [
+    {
+      "type": "lecture",
+      "choose": 1,
+      "sections": [
+        {"id": "A", "status": "open", "meetings": []}
+      ]
+    },
+    {
+      "type": "lab",
+      "choose": 1,
+      "sections": [
+        {"id": "AL", "status": "open", "meetings": []},
+        {"id": "BL", "status": "open", "meetings": []}
+      ]
+    }
+  ]
+}
+```
+
+## Meeting
+
+| JSON field | Python field | Type | Required | Validation |
+|---|---|---|---|---|
+| `days` | `days` | `DayCode[]` | Yes | Non-empty and unique |
+| `startTime` | `start_time` | `HH:MM` | Yes | Strict 24-hour time |
+| `endTime` | `end_time` | `HH:MM` | Yes | Strict 24-hour time and after start |
+| `location` | `location` | `string \| null` | No | Defaults to `null` |
+
+Day codes support exactly `M`, `T`, `W`, `Th`, and `F`. Full weekday names,
+weekends, `TH`, and other variants are invalid. Every meeting must satisfy
+`startTime < endTime`.
+
+## Section
+
+| JSON field | Python field | Type | Required | Validation |
+|---|---|---|---|---|
+| `id` | `id` | `string` | Yes | Uppercase letters and digits only; unique within course |
+| `status` | `status` | `open \| closed \| unknown` | Yes | Enum value only |
+| `sln` | `sln` | `string \| null` | No | Defaults to `null` |
+| `meetings` | `meetings` | `Meeting[]` | Yes | May be empty |
+| `requiredSectionIds` | `required_section_ids` | `string[]` | No | Defaults to `[]` |
+
+Component type is not duplicated on a section. The containing group determines
+whether the section is a lecture, quiz, lab, discussion, or other component.
+`requiredSectionIds` may reference sections in another group of the same course;
+unknown, same-group, self, and cyclic dependencies are rejected.
+
+## SectionGroup
+
+| JSON field | Python field | Type | Required | Validation |
+|---|---|---|---|---|
+| `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Enum value only |
+| `choose` | `choose` | `integer` | Yes | `0 <= choose <= sections.length` |
+| `sections` | `sections` | `Section[]` | Yes | May be empty only with `choose: 0` |
+
+The generator must select exactly `choose` sections from each group. For
+example, `choose: 2` with three sections means every candidate course selection
+contains exactly two of those three sections. A positive `choose` with an empty
+section list is invalid.
+
+## Course
+
+| JSON field | Python field | Type | Required | Validation |
+|---|---|---|---|---|
+| `code` | `code` | `string` | Yes | Non-empty; unique within request |
+| `groups` | `groups` | `SectionGroup[]` | Yes | Non-empty; group types unique |
+| `title` | `title` | `string \| null` | No | Non-empty when provided |
+
+Section IDs must be unique across all groups in a course. The model preserves
+the exact input groups and does not synthesize missing components.
+
+## ParsedPreferences
+
+`ParsedPreferences` is an internal normalized model. A form can populate it
+directly; a later AI layer can also produce it from natural-language input.
+
+| JSON field | Python field | Type | Default |
+|---|---|---|---|
+| `earliestStart` | `earliest_start` | `HH:MM \| null` | `null` |
+| `allowEarlierIfOnlyOption` | `allow_earlier_if_only_option` | `boolean` | `false` |
+| `allowedGapMinutes` | `allowed_gap_minutes` | `integer \| null` | `null` |
+| `minimumLongGapMinutes` | `minimum_long_gap_minutes` | `integer \| null` | `null` |
+| `requireOpenSections` | `require_open_sections` | `boolean` | `true` |
+| `fixedSections` | `fixed_sections` | `object<string, string[]>` | `{}` |
+
+Gap values must be non-negative. Every `fixedSections` key must match a course
+`code` in the request, and every listed section ID must exist in that course. If
+`requireOpenSections` is true, every fixed section must be `open`.
+
+## ScheduleRequest
+
+| JSON field | Type | Required | Validation |
+|---|---|---|---|
+| `courses` | `Course[]` | Yes | Non-empty; unique course codes |
+| `preferences` | `ParsedPreferences` | No | Uses defaults when omitted |
+
+All nested Meeting, Section, SectionGroup, Course, and ParsedPreferences
+validators run when `ScheduleRequest` is parsed. Invalid nested data therefore
+fails at the request boundary with a Pydantic/FastAPI validation error.
+
+## Response Scaffold
+
+The existing Week 3 response scaffold remains:
+
+```json
+{
+  "schedules": [],
+  "count": 0,
   "warnings": []
 }
 ```
 
-An empty successful result uses `schedules: []` and `count: 0`. Structurally
-invalid or contradictory requests use FastAPI's HTTP `422` validation response.
+## Sample Data
+
+`sample-data/courses.json` is the canonical development fixture. It contains:
+
+- `CSE 373`: lecture only.
+- `CHEM 142`: lecture + lab, selecting one lab from two.
+- `BIOL 180`: lecture + quiz + lab.
+- Valid open and closed section statuses.
+- Valid weekday and `HH:MM` meeting values.
 
 ## Week 2 Completion Standard
 
-The Week 2 data-contract milestone is complete when:
+Week 2 is complete when:
 
-- All core request and response objects have Pydantic models in
-  `backend/app/models.py`.
-- The README example and `sample-data/courses.json` validate as
-  `GenerateScheduleRequest`.
-- The documented empty response validates as `GenerateScheduleResponse`.
-- Tests cover valid input, invalid weekdays, malformed times, invalid time
-  ranges, invalid `choose` values, and missing fixed courses or sections.
-- `cd backend && pytest` passes without failures.
+- Course, SectionGroup, Section, Meeting, ScheduleRequest, and internal
+  ParsedPreferences models exist.
+- Lecture-only, lecture+lab, and lecture+quiz+lab inputs validate.
+- Missing groups are never automatically added.
+- Each group enforces its exact `choose` count bounds.
+- Invalid weekdays, times, section IDs, statuses, dependencies, and fixed
+  sections are rejected.
+- README and sample request JSON parse through `ScheduleRequest`.
+- `cd backend && pytest` passes all schema and validation tests.
 
-Any future contract change must update the Pydantic models, this document, the
-README examples, the sample fixture, and validation tests in the same change.
+Any contract change must update the models, README, this document, sample data,
+and tests together.

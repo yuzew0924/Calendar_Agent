@@ -12,14 +12,15 @@ The agent should accept:
 - Available sections and meeting times.
 - Section status, such as open, closed, or unknown.
 - Fixed selections that must be kept.
-- Preferences, such as earliest start time and preferred gap length.
+- Parsed preferences, such as earliest start time and preferred gap length.
 - Scenario requests, such as comparing two possible course sets.
 
 ## Processing Pipeline
 
 1. Normalize course and section data.
-2. Validate required fields.
-3. Expand each course into selectable section combinations.
+2. Validate the `ScheduleRequest` and its nested course groups.
+3. Expand only the explicit course groups into combinations, selecting exactly
+   each group's `choose` count.
 4. Apply fixed-section constraints.
 5. Generate the Cartesian product across courses.
 6. Reject options with time conflicts.

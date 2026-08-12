@@ -113,41 +113,23 @@ Example workflow:
 {
   "courses": [
     {
-      "courseCode": "CSE 414",
-      "title": "Database Systems",
-      "sectionGroups": [
+      "code": "CSE 373",
+      "title": "Data Structures and Algorithms",
+      "groups": [
         {
           "type": "lecture",
           "choose": 1,
           "sections": [
             {
-              "id": "C",
-              "type": "lecture",
+              "id": "A",
               "status": "open",
+              "sln": "12301",
               "meetings": [
                 {
                   "days": ["M", "W", "F"],
-                  "startTime": "12:30",
-                  "endTime": "13:20"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "type": "quiz",
-          "choose": 1,
-          "sections": [
-            {
-              "id": "CD",
-              "type": "quiz",
-              "status": "open",
-              "requiredSectionIds": ["C"],
-              "meetings": [
-                {
-                  "days": ["Th"],
-                  "startTime": "14:30",
-                  "endTime": "15:20"
+                  "startTime": "09:30",
+                  "endTime": "10:20",
+                  "location": "KNE 120"
                 }
               ]
             }
@@ -163,30 +145,32 @@ Example workflow:
     "minimumLongGapMinutes": 120,
     "requireOpenSections": true,
     "fixedSections": {
-      "CSE 414": ["C", "CD"]
+      "CSE 373": ["A"]
     }
   }
 }
 ```
 
-This payload maps directly to `GenerateScheduleRequest`. The canonical field
+This payload maps directly to `ScheduleRequest`. The canonical field
 definitions, defaults, validation rules, object relationships, and response
 example are documented in [`docs/input-format.md`](docs/input-format.md).
-The complete two-course development fixture, including open and closed sections,
-is available in [`sample-data/courses.json`](sample-data/courses.json).
+The complete development fixture includes lecture-only, lecture+lab, and
+lecture+quiz+lab courses in
+[`sample-data/courses.json`](sample-data/courses.json).
 
 ### Request Rules
 
-- `courses` is required and must contain at least one course. `courseCode` values
+- `courses` is required and must contain at least one course. `code` values
   must be unique within the request.
 - JSON uses `camelCase`. Unknown fields are rejected by the backend models.
 - `days` only accepts `M`, `T`, `W`, `Th`, and `F`.
 - `startTime`, `endTime`, and `earliestStart` use strict 24-hour `HH:MM`, such
   as `09:30`. Every meeting must satisfy `startTime < endTime`.
 - A section group's `choose` value must be an integer from `0` through
-  `sections.length`. Every section in the group must have the same `type` as the
-  group. Empty `sections` is valid only with `choose: 0`.
-- `fixedSections` maps an existing `courseCode` to existing section IDs in that
+  `sections.length`. Empty `sections` is valid only with `choose: 0`.
+- Course components are defined only by `groups`. A missing quiz or lab group is
+  not inferred or added by the backend.
+- `fixedSections` maps an existing course `code` to existing section IDs in that
   course. When `requireOpenSections` is `true`, every fixed section must also be
   `open`.
 - `allowedGapMinutes` and `minimumLongGapMinutes` must be non-negative when set.
@@ -327,16 +311,25 @@ Testing should cover:
 - API request and response validation.
 - Calendar rendering behavior.
 
-## Week 2 Completion
+## Week 2 — Course Schema & Validation
+
+**Dates:** 2026-08-17 to 2026-08-23
+
+**Goal:** Accurately represent different course structures through explicit
+section groups and reject invalid course data at the request boundary.
+
+### Completion Standard
 
 Week 2 is complete when all of the following remain true:
 
-- `Meeting`, `Section`, `SectionGroup`, `Course`, `Preferences`,
-  `GenerateScheduleRequest`, and `GenerateScheduleResponse` are implemented as
+- `Meeting`, `Section`, `SectionGroup`, `Course`, `ParsedPreferences`, and
+  `ScheduleRequest` are implemented as
   Pydantic models.
 - The README request and response JSON examples parse through those models.
-- `sample-data/courses.json` contains reusable valid course data with open and
-  closed sections.
+- `sample-data/courses.json` contains lecture-only, lecture+lab, and
+  lecture+quiz+lab examples with open and closed sections.
+- Parsing a course preserves exactly its input groups and never adds absent
+  components.
 - Invalid weekdays, time formats, time ranges, group selection counts, and fixed
   sections produce validation errors.
 - Running `cd backend && pytest` passes the complete backend test suite.
