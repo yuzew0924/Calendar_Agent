@@ -222,8 +222,17 @@ calendar-agent/
 │   │   ├── __init__.py
 │   │   ├── main.py
 │   │   ├── models.py
-│   │   └── normalization.py
+│   │   ├── normalization.py
+│   │   └── scheduler/
+│   │       ├── __init__.py
+│   │       ├── time_utils.py
+│   │       ├── solver.py
+│   │       ├── scoring.py
+│   │       └── explanations.py
 │   └── tests/
+│       ├── scheduler/
+│       │   ├── test_solver.py
+│       │   └── test_time_utils.py
 │       ├── test_health.py
 │       ├── test_models.py
 │       ├── test_normalization.py
@@ -236,6 +245,8 @@ Directory responsibilities:
 
 - `frontend/`: React, TypeScript, and Vite application for course input, preference controls, schedule results, and calendar visualization.
 - `backend/`: Python backend for schedule generation, scoring, API routes, and future AI-assisted extraction.
+- `backend/app/scheduler/`: Framework-independent time, combination, conflict,
+  scoring, and explanation logic that can be tested without FastAPI.
 - `sample-data/`: Example course and preference payloads used for development and testing.
 - `docs/`: Product notes, agent design, and input-format documentation.
 - `.env.example`: Template for local configuration values.

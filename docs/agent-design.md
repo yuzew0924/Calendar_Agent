@@ -66,3 +66,10 @@ The agent should explain schedules in plain language:
 - Seat availability refresh.
 - Registration priority simulation.
 - Export to Google Calendar or ICS.
+## Scheduler Boundary
+
+The FastAPI layer accepts validated `ScheduleRequest` values and serializes
+responses. It does not own scheduling rules. The independent
+`backend/app/scheduler/` package owns time normalization, section combination
+generation, conflict filtering, scoring, and result explanations. This keeps
+the core algorithm directly callable from tests and future non-HTTP workflows.

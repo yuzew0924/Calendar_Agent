@@ -130,8 +130,9 @@ weekends, `TH`, and other variants are invalid. Every meeting must satisfy
 
 ### Algorithm Normalization
 
-`backend/app/normalization.py` is the single normalization path used by models
-and future scheduling algorithms:
+`backend/app/scheduler/time_utils.py` is the canonical normalization path used
+by models and scheduling algorithms. `backend/app/normalization.py` re-exports
+the same functions for compatibility:
 
 | Input | Normalized value |
 |---|---|

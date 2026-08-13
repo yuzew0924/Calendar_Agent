@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from .normalization import DayCode, parse_time_string
+from .scheduler.time_utils import DayCode, parse_time_string
 
 
 def to_camel(value: str) -> str:
