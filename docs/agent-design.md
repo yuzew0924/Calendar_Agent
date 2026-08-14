@@ -20,7 +20,7 @@ The agent should accept:
 1. Normalize course and section data.
 2. Validate the `ScheduleRequest` and its nested course groups.
 3. Expand only the explicit course groups into combinations, selecting exactly
-   each group's `choose` count.
+   one section from every declared group.
 4. Apply fixed-section constraints.
 5. Generate the Cartesian product across courses.
 6. Reject options with time conflicts.

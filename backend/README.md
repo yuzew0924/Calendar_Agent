@@ -27,7 +27,7 @@ The framework-independent scheduler is split by responsibility:
 
 - `app/scheduler/time_utils.py`: weekday normalization, time parsing, and
   meeting overlap checks.
-- `app/scheduler/solver.py`: exact section-group combinations, open/fixed
+- `app/scheduler/solver.py`: one-section-per-group combinations, open/fixed
   filtering, dependency checks, and conflict-free multi-course combinations.
 - `app/scheduler/scoring.py`: schedule scoring extension point.
 - `app/scheduler/explanations.py`: human-readable explanation extension point.

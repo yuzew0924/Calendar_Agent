@@ -25,8 +25,8 @@ ScheduleCandidate = tuple[SectionChoice, ...]
 
 
 def generate_group_combinations(group: SectionGroup) -> tuple[tuple[Section, ...], ...]:
-    """Return every exact-size section selection allowed by one group."""
-    return tuple(combinations(group.sections, group.choose))
+    """Return one candidate for each individual section in a required group."""
+    return tuple((section,) for section in group.sections)
 
 
 def _dependencies_are_satisfied(selections: ScheduleCandidate) -> bool:
@@ -43,7 +43,7 @@ def generate_course_combinations(
     require_open_sections: bool = True,
     fixed_section_ids: set[str] | None = None,
 ) -> tuple[ScheduleCandidate, ...]:
-    """Generate valid exact-choice combinations for a single course."""
+    """Generate valid combinations containing one section from every group."""
     fixed_ids = fixed_section_ids or set()
     group_combinations = [generate_group_combinations(group) for group in course.groups]
     candidates: list[ScheduleCandidate] = []

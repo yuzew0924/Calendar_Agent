@@ -166,8 +166,8 @@ lecture+quiz+lab courses in
 - `days` only accepts `M`, `T`, `W`, `Th`, and `F`.
 - `startTime`, `endTime`, and `earliestStart` use strict 24-hour `HH:MM`, such
   as `09:30`. Every meeting must satisfy `startTime < endTime`.
-- A section group's `choose` value must be an integer from `0` through
-  `sections.length`. Empty `sections` is valid only with `choose: 0`.
+- A section group's `choose` value is optional, defaults to `1`, and cannot use
+  any other value. An empty declared group produces zero schedules.
 - Course components are defined only by `groups`. A missing quiz or lab group is
   not inferred or added by the backend.
 - `fixedSections` maps an existing course `code` to existing section IDs in that

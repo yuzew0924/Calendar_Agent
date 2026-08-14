@@ -1,3 +1,5 @@
+import pytest
+
 from app.models import Course, ParsedPreferences, ScheduleRequest, SectionGroup
 from app.scheduler.explanations import explain_schedule
 from app.scheduler.scoring import score_schedule
@@ -25,19 +27,118 @@ def section(
     }
 
 
-def test_group_combinations_respect_exact_choose_count() -> None:
+def section_without_meetings(section_id: str) -> dict[str, object]:
+    return {"id": section_id, "status": "open", "meetings": []}
+
+
+def test_group_combinations_select_one_section() -> None:
     group = SectionGroup.model_validate(
         {
             "type": "lab",
-            "choose": 2,
-            "sections": [section("AA"), section("AB"), section("AC")],
+            "sections": [
+                section_without_meetings("AA"),
+                section_without_meetings("AB"),
+                section_without_meetings("AC"),
+            ],
         }
     )
 
     choices = generate_group_combinations(group)
 
     assert len(choices) == 3
-    assert all(len(choice) == 2 for choice in choices)
+    assert all(len(choice) == 1 for choice in choices)
+
+
+@pytest.mark.parametrize(
+    ("groups", "expected_count"),
+    [
+        ([("lecture", ["A", "B"])], 2),
+        ([("lecture", ["A", "B"]), ("lab", ["AL", "BL", "CL"])], 6),
+        ([("lecture", ["A", "B"]), ("quiz", ["AA", "AB"])], 4),
+        (
+            [
+                ("lecture", ["A", "B"]),
+                ("quiz", ["AA", "AB"]),
+                ("lab", ["AL", "BL"]),
+            ],
+            8,
+        ),
+    ],
+)
+def test_course_combinations_follow_only_declared_groups(
+    groups: list[tuple[str, list[str]]], expected_count: int
+) -> None:
+    course = Course.model_validate(
+        {
+            "code": "TEST 101",
+            "groups": [
+                {
+                    "type": group_type,
+                    "sections": [
+                        section_without_meetings(section_id)
+                        for section_id in section_ids
+                    ],
+                }
+                for group_type, section_ids in groups
+            ],
+        }
+    )
+
+    choices = generate_course_combinations(course)
+
+    assert len(choices) == expected_count
+    assert all(len(choice) == len(groups) for choice in choices)
+    assert all(
+        len({selected.group_type for selected in choice}) == len(groups)
+        for choice in choices
+    )
+
+
+def test_empty_declared_group_produces_no_course_combinations() -> None:
+    course = Course.model_validate(
+        {
+            "code": "CHEM 142",
+            "groups": [
+                {
+                    "type": "lecture",
+                    "sections": [section_without_meetings("A")],
+                },
+                {"type": "lab", "sections": []},
+            ],
+        }
+    )
+
+    assert generate_course_combinations(course) == ()
+
+
+def test_course_with_empty_group_produces_no_final_schedules() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 373",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [section_without_meetings("A")],
+                        }
+                    ],
+                },
+                {
+                    "code": "CHEM 142",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [section_without_meetings("A")],
+                        },
+                        {"type": "lab", "sections": []},
+                    ],
+                },
+            ]
+        }
+    )
+
+    assert generate_schedule_candidates(request) == ()
 
 
 def test_course_combinations_filter_closed_and_keep_fixed_sections() -> None:

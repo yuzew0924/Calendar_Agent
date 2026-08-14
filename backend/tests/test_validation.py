@@ -70,12 +70,13 @@ def test_unknown_fixed_section_fails(valid_request_data: dict[str, object]) -> N
         ScheduleRequest.model_validate(invalid_request)
 
 
-def test_invalid_section_group_choose_fails() -> None:
-    with pytest.raises(ValidationError, match="choose cannot exceed"):
+@pytest.mark.parametrize("choose", [0, 2])
+def test_invalid_section_group_choose_fails(choose: int) -> None:
+    with pytest.raises(ValidationError):
         SectionGroup.model_validate(
             {
                 "type": "quiz",
-                "choose": 2,
+                "choose": choose,
                 "sections": [
                     {
                         "id": "AA",
@@ -85,23 +86,6 @@ def test_invalid_section_group_choose_fails() -> None:
                 ],
             }
         )
-
-
-def test_group_can_choose_multiple_sections() -> None:
-    group = SectionGroup.model_validate(
-        {
-            "type": "lab",
-            "choose": 2,
-            "sections": [
-                {"id": "AL", "status": "open", "meetings": []},
-                {"id": "BL", "status": "open", "meetings": []},
-                {"id": "CL", "status": "closed", "meetings": []},
-            ],
-        }
-    )
-
-    assert group.choose == 2
-    assert len(group.sections) == 3
 
 
 @pytest.mark.parametrize(

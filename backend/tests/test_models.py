@@ -124,15 +124,17 @@ def test_section_group_accepts_valid_choose_count() -> None:
     assert group.choose == 1
 
 
-def test_empty_section_group_allows_choose_zero() -> None:
-    group = SectionGroup(type="lab", choose=0, sections=[])
+def test_empty_section_group_is_valid_and_remains_required() -> None:
+    group = SectionGroup(type="lab", sections=[])
 
     assert group.sections == []
+    assert group.choose == 1
 
 
-def test_section_group_rejects_choose_above_section_count() -> None:
-    with pytest.raises(ValidationError, match="choose cannot exceed"):
-        SectionGroup(type="quiz", choose=1, sections=[])
+@pytest.mark.parametrize("choose", [0, 2])
+def test_section_group_rejects_choose_other_than_one(choose: int) -> None:
+    with pytest.raises(ValidationError):
+        SectionGroup(type="quiz", choose=choose, sections=[])
 
 
 def test_course_can_contain_multiple_section_groups() -> None:
@@ -141,9 +143,9 @@ def test_course_can_contain_multiple_section_groups() -> None:
             "code": "CSE 123",
             "title": "Computer Programming III",
             "groups": [
-                {"type": "lecture", "choose": 0, "sections": []},
-                {"type": "quiz", "choose": 0, "sections": []},
-                {"type": "lab", "choose": 0, "sections": []},
+                {"type": "lecture", "sections": []},
+                {"type": "quiz", "sections": []},
+                {"type": "lab", "sections": []},
             ],
         }
     )

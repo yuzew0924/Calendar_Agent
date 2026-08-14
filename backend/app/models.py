@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import time
 from enum import Enum
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -98,14 +98,8 @@ class Section(APIModel):
 
 class SectionGroup(APIModel):
     type: SectionType
-    choose: int = Field(ge=0)
+    choose: Literal[1] = 1
     sections: list[Section]
-
-    @model_validator(mode="after")
-    def validate_group(self) -> Self:
-        if self.choose > len(self.sections):
-            raise ValueError("choose cannot exceed the number of sections")
-        return self
 
 
 class Course(APIModel):

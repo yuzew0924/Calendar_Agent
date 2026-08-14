@@ -165,13 +165,13 @@ unknown, same-group, self, and cyclic dependencies are rejected.
 | JSON field | Python field | Type | Required | Validation |
 |---|---|---|---|---|
 | `type` | `type` | `lecture \| quiz \| lab \| discussion \| other` | Yes | Enum value only |
-| `choose` | `choose` | `integer` | Yes | `0 <= choose <= sections.length` |
-| `sections` | `sections` | `Section[]` | Yes | May be empty only with `choose: 0` |
+| `choose` | `choose` | `1` | No | Defaults to `1`; no other value is supported |
+| `sections` | `sections` | `Section[]` | Yes | May be empty, producing zero combinations |
 
-The generator must select exactly `choose` sections from each group. For
-example, `choose: 2` with three sections means every candidate course selection
-contains exactly two of those three sections. A positive `choose` with an empty
-section list is invalid.
+The generator selects exactly one section from every group explicitly present
+in the course. It does not add missing quiz or lab groups. It also does not skip
+an empty group: if a declared group has no sections, that course has zero valid
+combinations and the complete request has zero schedules.
 
 ## Course
 
