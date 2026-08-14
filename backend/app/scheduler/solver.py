@@ -16,12 +16,19 @@ from .time_utils import meetings_overlap
 
 @dataclass(frozen=True, slots=True)
 class SectionChoice:
-    course_code: str
     group_type: SectionType
     section: Section
 
 
-ScheduleCandidate = tuple[SectionChoice, ...]
+@dataclass(frozen=True, slots=True)
+class CourseCombination:
+    course_code: str
+    selections: tuple[SectionChoice, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleCandidate:
+    courses: tuple[CourseCombination, ...]
 
 
 def generate_group_combinations(group: SectionGroup) -> tuple[tuple[Section, ...], ...]:
@@ -29,7 +36,7 @@ def generate_group_combinations(group: SectionGroup) -> tuple[tuple[Section, ...
     return tuple((section,) for section in group.sections)
 
 
-def _dependencies_are_satisfied(selections: ScheduleCandidate) -> bool:
+def _dependencies_are_satisfied(selections: tuple[SectionChoice, ...]) -> bool:
     selected_ids = {choice.section.id for choice in selections}
     return all(
         set(choice.section.required_section_ids).issubset(selected_ids)
@@ -42,15 +49,15 @@ def generate_course_combinations(
     *,
     require_open_sections: bool = True,
     fixed_section_ids: set[str] | None = None,
-) -> tuple[ScheduleCandidate, ...]:
+) -> tuple[CourseCombination, ...]:
     """Generate valid combinations containing one section from every group."""
     fixed_ids = fixed_section_ids or set()
     group_combinations = [generate_group_combinations(group) for group in course.groups]
-    candidates: list[ScheduleCandidate] = []
+    candidates: list[CourseCombination] = []
 
     for group_selection in product(*group_combinations):
         choices = tuple(
-            SectionChoice(course.code, group.type, section)
+            SectionChoice(group.type, section)
             for group, selected_sections in zip(course.groups, group_selection, strict=True)
             for section in selected_sections
         )
@@ -64,10 +71,11 @@ def generate_course_combinations(
             continue
         if not _dependencies_are_satisfied(choices):
             continue
-        if schedule_has_conflict(choices):
+        candidate = CourseCombination(course_code=course.code, selections=choices)
+        if course_combination_has_conflict(candidate):
             continue
 
-        candidates.append(choices)
+        candidates.append(candidate)
 
     return tuple(candidates)
 
@@ -80,10 +88,22 @@ def sections_overlap(left: Section, right: Section) -> bool:
     )
 
 
-def schedule_has_conflict(candidate: ScheduleCandidate) -> bool:
+def course_combination_has_conflict(candidate: CourseCombination) -> bool:
     return any(
         sections_overlap(left.section, right.section)
-        for left, right in combinations(candidate, 2)
+        for left, right in combinations(candidate.selections, 2)
+    )
+
+
+def schedule_has_conflict(candidate: ScheduleCandidate) -> bool:
+    selections = tuple(
+        selection
+        for course_combination in candidate.courses
+        for selection in course_combination.selections
+    )
+    return any(
+        sections_overlap(left.section, right.section)
+        for left, right in combinations(selections, 2)
     )
 
 
@@ -100,7 +120,7 @@ def generate_schedule_candidates(request: ScheduleRequest) -> tuple[ScheduleCand
 
     schedules: list[ScheduleCandidate] = []
     for course_selection in product(*course_candidates):
-        candidate = tuple(choice for choices in course_selection for choice in choices)
+        candidate = ScheduleCandidate(courses=tuple(course_selection))
         if not schedule_has_conflict(candidate):
             schedules.append(candidate)
 

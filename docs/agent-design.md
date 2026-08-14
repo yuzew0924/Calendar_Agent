@@ -29,6 +29,15 @@ The agent should accept:
 9. Return the best schedules with explanations.
 10. Generate a weekly calendar visualization for every returned plan.
 
+The solver represents these two product levels explicitly:
+
+- `CourseCombination`: one selected section from every declared group in a
+  single course.
+- `ScheduleCandidate`: one course combination from every requested course.
+
+Input order is retained at the course, group, and section levels so candidate
+generation is deterministic.
+
 ## Scheduling Rules
 
 Rules should be split into hard constraints and soft preferences.

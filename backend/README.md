@@ -35,6 +35,12 @@ The framework-independent scheduler is split by responsibility:
 FastAPI routes should validate requests and serialize responses; scheduling
 rules belong in these modules so tests and other callers can use them directly.
 
+The solver preserves two explicit Cartesian-product levels. A
+`CourseCombination` contains one `SectionChoice` for every declared group in
+one course. A `ScheduleCandidate` contains one `CourseCombination` for every
+course in request order. Group, section, and course input order is preserved,
+so repeated calls with the same request return candidates in the same order.
+
 ## Setup
 
 ```bash
