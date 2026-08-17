@@ -41,6 +41,11 @@ one course. A `ScheduleCandidate` contains one `CourseCombination` for every
 course in request order. Group, section, and course input order is preserved,
 so repeated calls with the same request return candidates in the same order.
 
+Hard constraints are applied to every candidate. Meeting conflicts use
+half-open intervals: two meetings conflict only when they share a weekday and
+`a.start < b.end and b.start < a.end`. Fixed sections must survive open-only
+filtering and must still pass intra-course and cross-course conflict checks.
+
 ## Setup
 
 ```bash

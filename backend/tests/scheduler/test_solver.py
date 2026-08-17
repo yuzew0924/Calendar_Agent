@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from app.models import Course, ParsedPreferences, ScheduleRequest, SectionGroup
 from app.scheduler.explanations import explain_schedule
@@ -28,8 +29,13 @@ def section(
     }
 
 
-def section_without_meetings(section_id: str) -> dict[str, object]:
-    return {"id": section_id, "status": "open", "meetings": []}
+def section_without_meetings(
+    section_id: str,
+    *,
+    status: str = "open",
+    sln: str | None = None,
+) -> dict[str, object]:
+    return {"id": section_id, "status": status, "sln": sln, "meetings": []}
 
 
 def schedule_signature(
@@ -307,6 +313,186 @@ def test_generate_schedules_filters_cross_course_conflicts() -> None:
         ("CSE 373", ("A",)),
         ("INFO 370", ("B",)),
     )
+
+
+def test_all_fixed_sections_are_present_in_every_schedule() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 123",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section("A"),
+                                section("B", start="11:30", end="12:20"),
+                            ],
+                        },
+                        {
+                            "type": "quiz",
+                            "sections": [
+                                section("AA", day="T"),
+                                section("AB", day="T", start="11:30", end="12:20"),
+                            ],
+                        },
+                    ],
+                }
+            ],
+            "preferences": {
+                "fixedSections": {"CSE 123": ["A", "AA"]},
+            },
+        }
+    )
+
+    schedules = generate_schedule_candidates(request)
+
+    assert len(schedules) == 1
+    assert schedule_signature(schedules[0]) == (("CSE 123", ("A", "AA")),)
+
+
+def test_fixed_section_conflict_with_another_course_produces_no_schedule() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 123",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section("A"),
+                                section("B", start="11:30", end="12:20"),
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "code": "INFO 200",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section("A", start="10:00", end="10:50")
+                            ],
+                        }
+                    ],
+                },
+            ],
+            "preferences": {"fixedSections": {"CSE 123": ["A"]}},
+        }
+    )
+
+    assert generate_schedule_candidates(request) == ()
+
+
+def test_closed_fixed_section_cannot_bypass_open_only_validation() -> None:
+    with pytest.raises(ValidationError, match="fixed section must be open"):
+        ScheduleRequest.model_validate(
+            {
+                "courses": [
+                    {
+                        "code": "CSE 123",
+                        "groups": [
+                            {
+                                "type": "lecture",
+                                "sections": [
+                                    section_without_meetings("A", status="closed")
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                "preferences": {
+                    "requireOpenSections": True,
+                    "fixedSections": {"CSE 123": ["A"]},
+                },
+            }
+        )
+
+
+def test_open_only_filter_excludes_closed_sections() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 123",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section_without_meetings("A"),
+                                section_without_meetings("B", status="closed"),
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "preferences": {"requireOpenSections": True},
+        }
+    )
+
+    schedules = generate_schedule_candidates(request)
+
+    assert tuple(schedule_signature(schedule) for schedule in schedules) == (
+        (("CSE 123", ("A",)),),
+    )
+
+
+def test_closed_sections_are_candidates_when_open_only_is_disabled() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 123",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section_without_meetings("A"),
+                                section_without_meetings("B", status="closed"),
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "preferences": {"requireOpenSections": False},
+        }
+    )
+
+    schedules = generate_schedule_candidates(request)
+
+    assert tuple(schedule_signature(schedule) for schedule in schedules) == (
+        (("CSE 123", ("A",)),),
+        (("CSE 123", ("B",)),),
+    )
+
+
+def test_group_with_only_closed_sections_produces_no_open_only_schedule() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CHEM 142",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [section_without_meetings("A")],
+                        },
+                        {
+                            "type": "lab",
+                            "sections": [
+                                section_without_meetings("AL", status="closed")
+                            ],
+                        },
+                    ],
+                }
+            ],
+            "preferences": {"requireOpenSections": True},
+        }
+    )
+
+    assert generate_schedule_candidates(request) == ()
 
 
 def test_multi_course_cartesian_product_is_complete_and_stable() -> None:

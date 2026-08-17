@@ -31,9 +31,17 @@ class ScheduleCandidate:
     courses: tuple[CourseCombination, ...]
 
 
-def generate_group_combinations(group: SectionGroup) -> tuple[tuple[Section, ...], ...]:
-    """Return one candidate for each individual section in a required group."""
-    return tuple((section,) for section in group.sections)
+def generate_group_combinations(
+    group: SectionGroup,
+    *,
+    require_open_sections: bool = False,
+) -> tuple[tuple[Section, ...], ...]:
+    """Return one eligible section choice for a required group."""
+    return tuple(
+        (section,)
+        for section in group.sections
+        if not require_open_sections or section.status is SectionStatus.OPEN
+    )
 
 
 def _dependencies_are_satisfied(selections: tuple[SectionChoice, ...]) -> bool:
@@ -52,7 +60,13 @@ def generate_course_combinations(
 ) -> tuple[CourseCombination, ...]:
     """Generate valid combinations containing one section from every group."""
     fixed_ids = fixed_section_ids or set()
-    group_combinations = [generate_group_combinations(group) for group in course.groups]
+    group_combinations = [
+        generate_group_combinations(
+            group,
+            require_open_sections=require_open_sections,
+        )
+        for group in course.groups
+    ]
     candidates: list[CourseCombination] = []
 
     for group_selection in product(*group_combinations):
@@ -64,10 +78,6 @@ def generate_course_combinations(
         selected_ids = {choice.section.id for choice in choices}
 
         if not fixed_ids.issubset(selected_ids):
-            continue
-        if require_open_sections and any(
-            choice.section.status is not SectionStatus.OPEN for choice in choices
-        ):
             continue
         if not _dependencies_are_satisfied(choices):
             continue

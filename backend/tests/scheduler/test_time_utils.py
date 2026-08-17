@@ -1,3 +1,5 @@
+import pytest
+
 from app.models import Meeting
 from app.scheduler.time_utils import meetings_overlap
 
@@ -8,9 +10,20 @@ def meeting(days: list[str], start: str, end: str) -> Meeting:
     )
 
 
-def test_meetings_overlap_on_a_shared_day() -> None:
-    left = meeting(["M", "W"], "09:30", "10:20")
-    right = meeting(["W"], "10:00", "10:50")
+@pytest.mark.parametrize(
+    ("left_times", "right_times"),
+    [
+        (("09:30", "10:20"), ("09:30", "10:20")),
+        (("09:30", "10:20"), ("10:00", "10:50")),
+        (("09:30", "11:20"), ("10:00", "10:50")),
+    ],
+)
+def test_meetings_detect_all_overlap_shapes(
+    left_times: tuple[str, str],
+    right_times: tuple[str, str],
+) -> None:
+    left = meeting(["M", "W"], *left_times)
+    right = meeting(["W"], *right_times)
 
     assert meetings_overlap(left, right)
 
