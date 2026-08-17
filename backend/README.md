@@ -45,6 +45,15 @@ Hard constraints are applied to every candidate. Meeting conflicts use
 half-open intervals: two meetings conflict only when they share a weekday and
 `a.start < b.end and b.start < a.end`. Fixed sections must survive open-only
 filtering and must still pass intra-course and cross-course conflict checks.
+The solver pipeline is:
+
+1. Filter ineligible sections when open-only is enabled.
+2. Generate one choice per declared group.
+3. Build course-level Cartesian products.
+4. Apply fixed-section and course-level hard constraints.
+5. Build the multi-course Cartesian product.
+6. Apply the unified schedule hard-constraint gate, including conflicts.
+7. Return only valid schedules, or an empty tuple when none exist.
 
 ## Setup
 

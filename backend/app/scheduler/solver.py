@@ -75,14 +75,13 @@ def generate_course_combinations(
             for group, selected_sections in zip(course.groups, group_selection, strict=True)
             for section in selected_sections
         )
-        selected_ids = {choice.section.id for choice in choices}
-
-        if not fixed_ids.issubset(selected_ids):
-            continue
-        if not _dependencies_are_satisfied(choices):
-            continue
         candidate = CourseCombination(course_code=course.code, selections=choices)
-        if course_combination_has_conflict(candidate):
+        if not course_combination_satisfies_hard_constraints(
+            candidate,
+            course,
+            require_open_sections=require_open_sections,
+            fixed_section_ids=fixed_ids,
+        ):
             continue
 
         candidates.append(candidate)
@@ -117,6 +116,67 @@ def schedule_has_conflict(candidate: ScheduleCandidate) -> bool:
     )
 
 
+def course_combination_satisfies_hard_constraints(
+    candidate: CourseCombination,
+    course: Course,
+    *,
+    require_open_sections: bool,
+    fixed_section_ids: set[str],
+) -> bool:
+    """Validate one course selection against every course-level hard rule."""
+    if candidate.course_code != course.code:
+        return False
+    if len(candidate.selections) != len(course.groups):
+        return False
+
+    for group, selection in zip(course.groups, candidate.selections, strict=True):
+        sections_by_id = {section.id: section for section in group.sections}
+        if selection.group_type is not group.type:
+            return False
+        if sections_by_id.get(selection.section.id) != selection.section:
+            return False
+        if (
+            require_open_sections
+            and selection.section.status is not SectionStatus.OPEN
+        ):
+            return False
+
+    selected_ids = {choice.section.id for choice in candidate.selections}
+    return (
+        fixed_section_ids.issubset(selected_ids)
+        and _dependencies_are_satisfied(candidate.selections)
+        and not course_combination_has_conflict(candidate)
+    )
+
+
+def schedule_satisfies_hard_constraints(
+    candidate: ScheduleCandidate,
+    request: ScheduleRequest,
+) -> bool:
+    """Validate course coverage and every hard rule before returning a schedule."""
+    if len(candidate.courses) != len(request.courses):
+        return False
+
+    if not all(
+        course_combination_satisfies_hard_constraints(
+            course_combination,
+            course,
+            require_open_sections=request.preferences.require_open_sections,
+            fixed_section_ids=set(
+                request.preferences.fixed_sections.get(course.code, [])
+            ),
+        )
+        for course, course_combination in zip(
+            request.courses,
+            candidate.courses,
+            strict=True,
+        )
+    ):
+        return False
+
+    return not schedule_has_conflict(candidate)
+
+
 def generate_schedule_candidates(request: ScheduleRequest) -> tuple[ScheduleCandidate, ...]:
     """Generate all conflict-free multi-course schedules for a validated request."""
     course_candidates = [
@@ -131,7 +191,7 @@ def generate_schedule_candidates(request: ScheduleRequest) -> tuple[ScheduleCand
     schedules: list[ScheduleCandidate] = []
     for course_selection in product(*course_candidates):
         candidate = ScheduleCandidate(courses=tuple(course_selection))
-        if not schedule_has_conflict(candidate):
+        if schedule_satisfies_hard_constraints(candidate, request):
             schedules.append(candidate)
 
     return tuple(schedules)

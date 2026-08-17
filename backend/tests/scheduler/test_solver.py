@@ -5,10 +5,12 @@ from app.models import Course, ParsedPreferences, ScheduleRequest, SectionGroup
 from app.scheduler.explanations import explain_schedule
 from app.scheduler.scoring import score_schedule
 from app.scheduler.solver import (
+    CourseCombination,
     ScheduleCandidate,
     generate_course_combinations,
     generate_group_combinations,
     generate_schedule_candidates,
+    schedule_satisfies_hard_constraints,
 )
 
 
@@ -493,6 +495,90 @@ def test_group_with_only_closed_sections_produces_no_open_only_schedule() -> Non
     )
 
     assert generate_schedule_candidates(request) == ()
+
+
+def test_every_generated_schedule_passes_the_unified_hard_constraint_gate() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 123",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section("A"),
+                                section("B", status="closed"),
+                            ],
+                        },
+                        {
+                            "type": "quiz",
+                            "sections": [section("AA", day="T")],
+                        },
+                    ],
+                },
+                {
+                    "code": "INFO 200",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section("A", start="10:30", end="11:20")
+                            ],
+                        }
+                    ],
+                },
+            ],
+            "preferences": {
+                "requireOpenSections": True,
+                "fixedSections": {"CSE 123": ["A", "AA"]},
+            },
+        }
+    )
+
+    schedules = generate_schedule_candidates(request)
+
+    assert len(schedules) == 1
+    assert all(
+        schedule_satisfies_hard_constraints(candidate, request)
+        for candidate in schedules
+    )
+
+
+def test_unified_hard_constraint_gate_rejects_missing_course_or_group() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 123",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [section_without_meetings("A")],
+                        },
+                        {
+                            "type": "quiz",
+                            "sections": [section_without_meetings("AA")],
+                        },
+                    ],
+                }
+            ]
+        }
+    )
+    valid = generate_schedule_candidates(request)[0]
+    incomplete_course = CourseCombination(
+        course_code=valid.courses[0].course_code,
+        selections=valid.courses[0].selections[:1],
+    )
+
+    assert not schedule_satisfies_hard_constraints(
+        ScheduleCandidate(courses=()),
+        request,
+    )
+    assert not schedule_satisfies_hard_constraints(
+        ScheduleCandidate(courses=(incomplete_course,)),
+        request,
+    )
 
 
 def test_multi_course_cartesian_product_is_complete_and_stable() -> None:
