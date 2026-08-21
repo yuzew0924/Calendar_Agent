@@ -179,6 +179,29 @@ The source of truth is
 [`backend/app/models.py`](backend/app/models.py), with the full field table in
 [`docs/input-format.md`](docs/input-format.md).
 
+### AI Preference Output
+
+Natural-language preferences never enter the scheduler directly. An AI parser
+must first return JSON that validates as `ParsedPreferences`:
+
+```json
+{
+  "earliestStart": "10:00",
+  "earliestStartIsHard": true,
+  "preferredDaysOff": ["F"],
+  "fixedSections": ["CSE 373 A"],
+  "requireOpenSections": true,
+  "hardConstraints": ["Do not start before 10:00"],
+  "softPreferences": ["Prefer compact schedules"]
+}
+```
+
+`to_scheduler_preferences()` converts recognized structured fields into the
+Week 2/3 `Preferences` model. Fixed sections and open-only are hard scheduler
+filters. A hard earliest start maps to the engine's earliest-start fields.
+Preferred days off and free-text preference arrays are retained for future
+ranking or explanation and are not executed as filtering rules.
+
 ## Example Response
 
 ```json
@@ -231,11 +254,13 @@ calendar-agent/
 │   │       └── explanations.py
 │   └── tests/
 │       ├── scheduler/
+│       │   ├── test_sample_data.py
 │       │   ├── test_solver.py
 │       │   └── test_time_utils.py
 │       ├── test_health.py
 │       ├── test_models.py
 │       ├── test_normalization.py
+│       ├── test_parsed_preferences.py
 │       └── test_validation.py
 └── sample-data/
     └── courses.json
@@ -335,8 +360,8 @@ section groups and reject invalid course data at the request boundary.
 
 Week 2 is complete when all of the following remain true:
 
-- `Meeting`, `Section`, `SectionGroup`, `Course`, `ParsedPreferences`, and
-  `ScheduleRequest` are implemented as
+- `Meeting`, `Section`, `SectionGroup`, `Course`, `Preferences`,
+  `ParsedPreferences`, and `ScheduleRequest` are implemented as
   Pydantic models.
 - The README request and response JSON examples parse through those models.
 - `sample-data/courses.json` contains lecture-only, lecture+lab, and

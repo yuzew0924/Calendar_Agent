@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from ..models import ParsedPreferences
+from ..models import Preferences
 from .solver import ScheduleCandidate
 
 
 def score_schedule(
     candidate: ScheduleCandidate,
-    preferences: ParsedPreferences,
+    preferences: Preferences,
 ) -> float:
     """Return the baseline score until preference scoring is implemented."""
     del candidate, preferences

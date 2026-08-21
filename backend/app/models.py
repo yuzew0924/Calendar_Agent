@@ -152,7 +152,9 @@ class Course(APIModel):
         return self
 
 
-class ParsedPreferences(APIModel):
+class Preferences(APIModel):
+    """Validated preferences consumed by the scheduling engine."""
+
     earliest_start: time | None = None
     allow_earlier_if_only_option: bool = False
     allowed_gap_minutes: int | None = Field(default=None, ge=0)
@@ -184,9 +186,90 @@ class ParsedPreferences(APIModel):
         return value.strftime("%H:%M") if value is not None else None
 
 
+class ParsedPreferences(APIModel):
+    """Strict structured output accepted from an AI preference parser."""
+
+    earliest_start: time | None = None
+    earliest_start_is_hard: bool = False
+    preferred_days_off: list[DayCode] = Field(default_factory=list)
+    fixed_sections: list[str] = Field(default_factory=list)
+    require_open_sections: bool = True
+    hard_constraints: list[str] = Field(default_factory=list)
+    soft_preferences: list[str] = Field(default_factory=list)
+
+    @field_validator("earliest_start", mode="before")
+    @classmethod
+    def validate_earliest_start_format(cls, value: object) -> object:
+        return parse_time_string(value) if isinstance(value, str) else value
+
+    @field_validator("preferred_days_off")
+    @classmethod
+    def validate_unique_preferred_days(cls, days: list[DayCode]) -> list[DayCode]:
+        if len(days) != len(set(days)):
+            raise ValueError("preferredDaysOff must not contain duplicates")
+        return days
+
+    @field_validator("fixed_sections")
+    @classmethod
+    def validate_fixed_section_references(cls, references: list[str]) -> list[str]:
+        if len(references) != len(set(references)):
+            raise ValueError("fixedSections must not contain duplicates")
+        for reference in references:
+            try:
+                course_code, section_id = reference.rsplit(" ", 1)
+            except ValueError as error:
+                raise ValueError(
+                    "fixedSections entries must use '<course code> <section ID>'"
+                ) from error
+            if (
+                not course_code
+                or not section_id.isalnum()
+                or section_id != section_id.upper()
+            ):
+                raise ValueError(
+                    "fixedSections entries must use '<course code> <section ID>'"
+                )
+        return references
+
+    @field_validator("hard_constraints", "soft_preferences")
+    @classmethod
+    def validate_preference_notes(cls, notes: list[str]) -> list[str]:
+        if any(not note for note in notes):
+            raise ValueError("preference notes must not be empty")
+        if len(notes) != len(set(notes)):
+            raise ValueError("preference notes must not contain duplicates")
+        return notes
+
+    @model_validator(mode="after")
+    def validate_hard_earliest_start(self) -> Self:
+        if self.earliest_start_is_hard and self.earliest_start is None:
+            raise ValueError("earliestStart is required when earliestStartIsHard is true")
+        return self
+
+    @field_serializer("earliest_start", when_used="json")
+    def serialize_earliest_start(self, value: time | None) -> str | None:
+        return value.strftime("%H:%M") if value is not None else None
+
+    def to_scheduler_preferences(self) -> Preferences:
+        """Convert validated AI output into scheduler-safe preferences."""
+        fixed_sections: dict[str, list[str]] = {}
+        for reference in self.fixed_sections:
+            course_code, section_id = reference.rsplit(" ", 1)
+            fixed_sections.setdefault(course_code, []).append(section_id)
+
+        return Preferences(
+            earliest_start=self.earliest_start,
+            allow_earlier_if_only_option=(
+                self.earliest_start is not None and not self.earliest_start_is_hard
+            ),
+            require_open_sections=self.require_open_sections,
+            fixed_sections=fixed_sections,
+        )
+
+
 class ScheduleRequest(APIModel):
     courses: list[Course] = Field(min_length=1)
-    preferences: ParsedPreferences = Field(default_factory=ParsedPreferences)
+    preferences: Preferences = Field(default_factory=Preferences)
 
     @model_validator(mode="after")
     def validate_courses_and_fixed_sections(self) -> Self:
@@ -261,7 +344,4 @@ class GenerateScheduleResponse(APIModel):
         return self
 
 
-# Compatibility aliases for existing callers while the API migrates to the
-# canonical Week 2 names above.
-Preferences = ParsedPreferences
 GenerateScheduleRequest = ScheduleRequest

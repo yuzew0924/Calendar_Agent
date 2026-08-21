@@ -15,8 +15,10 @@ Responsibilities:
 The schemas are centralized in `app/models.py`. `ScheduleRequest` accepts the
 documented camelCase JSON fields while exposing snake_case Python attributes.
 Course components are defined only by each course's explicit `groups`; parsing
-never adds an absent quiz, lab, or other component. `ParsedPreferences` is the
-internal normalized preference model.
+never adds an absent quiz, lab, or other component. `Preferences` is the
+scheduler-facing model. AI output must validate as `ParsedPreferences` and be
+converted with `to_scheduler_preferences()` before entering a
+`ScheduleRequest`; raw AI text never enters the solver.
 
 Weekday and time normalization is centralized in `app/scheduler/time_utils.py`.
 Scheduling algorithms compare `Weekday` values and integer minutes since

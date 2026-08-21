@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models import Course, ParsedPreferences, ScheduleRequest, SectionGroup
+from app.models import Course, Preferences, ScheduleRequest, SectionGroup
 from app.scheduler.explanations import explain_schedule
 from app.scheduler.scoring import score_schedule
 from app.scheduler.solver import (
@@ -626,7 +626,7 @@ def test_multi_course_cartesian_product_is_complete_and_stable() -> None:
 
 
 def test_scoring_and_explanation_extension_points_are_callable() -> None:
-    preferences = ParsedPreferences()
+    preferences = Preferences()
     candidate = ScheduleCandidate(courses=())
 
     assert score_schedule(candidate, preferences) == 100.0

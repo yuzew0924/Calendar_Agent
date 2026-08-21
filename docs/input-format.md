@@ -17,7 +17,7 @@ ScheduleRequest
 │   └── groups[]: SectionGroup
 │       └── sections[]: Section
 │           └── meetings[]: Meeting
-└── preferences: ParsedPreferences
+└── preferences: Preferences
 ```
 
 ```json
@@ -184,10 +184,11 @@ combinations and the complete request has zero schedules.
 Section IDs must be unique across all groups in a course. The model preserves
 the exact input groups and does not synthesize missing components.
 
-## ParsedPreferences
+## Preferences
 
-`ParsedPreferences` is an internal normalized model. A form can populate it
-directly; a later AI layer can also produce it from natural-language input.
+`Preferences` is the validated model consumed by `ScheduleRequest` and the
+scheduler. Forms may populate it directly. AI-generated values must reach it
+only through the separate `ParsedPreferences` validation and conversion step.
 
 | JSON field | Python field | Type | Default |
 |---|---|---|---|
@@ -202,14 +203,62 @@ Gap values must be non-negative. Every `fixedSections` key must match a course
 `code` in the request, and every listed section ID must exist in that course. If
 `requireOpenSections` is true, every fixed section must be `open`.
 
+## AI ParsedPreferences
+
+`ParsedPreferences` is the only accepted structured output from an AI
+preference parser:
+
+```json
+{
+  "earliestStart": "10:00",
+  "earliestStartIsHard": true,
+  "preferredDaysOff": ["F"],
+  "fixedSections": ["CSE 373 A", "CSE 373 AA"],
+  "requireOpenSections": true,
+  "hardConstraints": ["Do not start before 10:00"],
+  "softPreferences": ["Prefer compact schedules"]
+}
+```
+
+| JSON field | Type | Default | Role |
+|---|---|---|---|
+| `earliestStart` | `HH:MM \| null` | `null` | Structured start-time preference |
+| `earliestStartIsHard` | `boolean` | `false` | Marks earliest start as hard instead of soft |
+| `preferredDaysOff` | `DayCode[]` | `[]` | Future ranking input only |
+| `fixedSections` | `string[]` | `[]` | Hard filter after conversion |
+| `requireOpenSections` | `boolean` | `true` | Hard filter after conversion |
+| `hardConstraints` | `string[]` | `[]` | Explanation/provenance only; never executed directly |
+| `softPreferences` | `string[]` | `[]` | Future ranking and explanation input |
+
+Each fixed-section string must use `<course code> <section ID>`, such as
+`CSE 373 A`. `earliestStartIsHard: true` requires `earliestStart`. Day codes
+remain limited to `M`, `T`, `W`, `Th`, and `F`.
+
+Calling `to_scheduler_preferences()` converts fixed-section references into
+the scheduler map format, carries over open-only and earliest-start settings,
+and sets `allowEarlierIfOnlyOption` from `earliestStartIsHard`. The backend does
+not execute text from `hardConstraints` or `softPreferences`; a requirement
+must be represented by a recognized structured field before it can affect
+filtering.
+
+Execution categories are explicit:
+
+- Hard filtering inputs: `fixedSections`, `requireOpenSections`, and
+  `earliestStart` when `earliestStartIsHard` is true.
+- Soft ranking inputs: `preferredDaysOff` and a non-hard `earliestStart`.
+- Non-filtering parser metadata: text in `hardConstraints` and
+  `softPreferences`. These strings may support future ranking or explanations,
+  but they cannot create scheduler rules without first being mapped to a
+  recognized field.
+
 ## ScheduleRequest
 
 | JSON field | Type | Required | Validation |
 |---|---|---|---|
 | `courses` | `Course[]` | Yes | Non-empty; unique course codes |
-| `preferences` | `ParsedPreferences` | No | Uses defaults when omitted |
+| `preferences` | `Preferences` | No | Uses defaults when omitted |
 
-All nested Meeting, Section, SectionGroup, Course, and ParsedPreferences
+All nested Meeting, Section, SectionGroup, Course, and Preferences
 validators run when `ScheduleRequest` is parsed. Invalid nested data therefore
 fails at the request boundary with a Pydantic/FastAPI validation error.
 
@@ -239,11 +288,11 @@ The existing Week 3 response scaffold remains:
 
 Week 2 is complete when:
 
-- Course, SectionGroup, Section, Meeting, ScheduleRequest, and internal
-  ParsedPreferences models exist.
+- Course, SectionGroup, Section, Meeting, ScheduleRequest, and Preferences
+  models exist.
 - Lecture-only, lecture+lab, and lecture+quiz+lab inputs validate.
 - Missing groups are never automatically added.
-- Each group enforces its exact `choose` count bounds.
+- Every declared group requires exactly one selected section.
 - Invalid weekdays, times, section IDs, statuses, dependencies, and fixed
   sections are rejected.
 - README and sample request JSON parse through `ScheduleRequest`.

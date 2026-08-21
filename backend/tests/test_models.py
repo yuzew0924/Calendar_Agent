@@ -11,6 +11,7 @@ from app.models import (
     GenerateScheduleResponse,
     Meeting,
     ParsedPreferences,
+    Preferences,
     ScheduleRequest,
     Section,
     SectionGroup,
@@ -154,7 +155,7 @@ def test_course_can_contain_multiple_section_groups() -> None:
 
 
 def test_preferences_accept_documented_fields() -> None:
-    preferences = ParsedPreferences.model_validate(
+    preferences = Preferences.model_validate(
         {
             "earliestStart": "09:30",
             "allowEarlierIfOnlyOption": True,
@@ -174,7 +175,7 @@ def test_preferences_accept_documented_fields() -> None:
 @pytest.mark.parametrize("invalid_time", ["9:30", "09:30:00", "24:00", "09:60"])
 def test_preferences_reject_invalid_earliest_start(invalid_time: str) -> None:
     with pytest.raises(ValidationError, match="24-hour HH:MM format"):
-        ParsedPreferences.model_validate({"earliestStart": invalid_time})
+        Preferences.model_validate({"earliestStart": invalid_time})
 
 
 @pytest.mark.parametrize(
@@ -182,7 +183,7 @@ def test_preferences_reject_invalid_earliest_start(invalid_time: str) -> None:
 )
 def test_preferences_reject_negative_gap_values(field_name: str) -> None:
     with pytest.raises(ValidationError):
-        ParsedPreferences.model_validate({field_name: -1})
+        Preferences.model_validate({field_name: -1})
 
 
 def test_request_rejects_unknown_fixed_course(
@@ -308,7 +309,8 @@ def test_core_model_schemas_use_documented_fields() -> None:
     section_schema = Section.model_json_schema(by_alias=True)
     group_schema = SectionGroup.model_json_schema(by_alias=True)
     course_schema = Course.model_json_schema(by_alias=True)
-    preferences_schema = ParsedPreferences.model_json_schema(by_alias=True)
+    preferences_schema = Preferences.model_json_schema(by_alias=True)
+    parsed_preferences_schema = ParsedPreferences.model_json_schema(by_alias=True)
 
     assert set(meeting_schema["properties"]) == {
         "days",
@@ -335,6 +337,15 @@ def test_core_model_schemas_use_documented_fields() -> None:
         "minimumLongGapMinutes",
         "requireOpenSections",
         "fixedSections",
+    }
+    assert set(parsed_preferences_schema["properties"]) == {
+        "earliestStart",
+        "earliestStartIsHard",
+        "preferredDaysOff",
+        "fixedSections",
+        "requireOpenSections",
+        "hardConstraints",
+        "softPreferences",
     }
 
 
