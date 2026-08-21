@@ -83,4 +83,6 @@ pytest
 ```
 
 The test suite covers the health endpoint, schemas, normalization, meeting
-overlap checks, and the framework-independent solver.
+overlap checks, and the framework-independent solver. It also validates
+`sample-data/courses.json` through `GenerateScheduleRequest`, runs the complete
+scheduler pipeline, and verifies conflict-free deterministic output.
