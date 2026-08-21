@@ -246,6 +246,11 @@ calendar-agent/
 │   │   ├── main.py
 │   │   ├── models.py
 │   │   ├── normalization.py
+│   │   ├── ai/
+│   │   │   ├── __init__.py
+│   │   │   ├── client.py
+│   │   │   ├── preference_parser.py
+│   │   │   └── prompts.py
 │   │   └── scheduler/
 │   │       ├── __init__.py
 │   │       ├── time_utils.py
@@ -253,6 +258,9 @@ calendar-agent/
 │   │       ├── scoring.py
 │   │       └── explanations.py
 │   └── tests/
+│       ├── ai/
+│       │   ├── test_client.py
+│       │   └── test_preference_parser.py
 │       ├── scheduler/
 │       │   ├── test_sample_data.py
 │       │   ├── test_solver.py
@@ -290,12 +298,20 @@ The example contains:
 VITE_API_BASE_URL=http://localhost:8000
 BACKEND_HOST=127.0.0.1
 BACKEND_PORT=8000
+OPENAI_API_KEY=
+OPENAI_MODEL=
+AI_PREFERENCE_TIMEOUT_SECONDS=20
 ```
 
 `VITE_API_BASE_URL` tells the React app where to reach FastAPI. Vite is configured
 to load `.env` from the repository root. `BACKEND_HOST` and `BACKEND_PORT` define
 the intended local backend bind address. Keep secrets in `.env`; Git ignores that
 file, while `.env.example` documents safe placeholder values.
+
+`OPENAI_API_KEY` and `OPENAI_MODEL` are required only when an AI feature is
+called. `AI_PREFERENCE_TIMEOUT_SECONDS` defaults to `20` and must be greater
+than zero. The key is read at runtime by the backend AI client and must never be
+committed or sent to the frontend.
 
 To run Uvicorn with the configured backend values:
 

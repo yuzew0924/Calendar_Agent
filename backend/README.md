@@ -20,6 +20,33 @@ scheduler-facing model. AI output must validate as `ParsedPreferences` and be
 converted with `to_scheduler_preferences()` before entering a
 `ScheduleRequest`; raw AI text never enters the solver.
 
+## AI Client
+
+The `app/ai/` package is the only OpenAI integration boundary:
+
+- `client.py` loads `OPENAI_API_KEY`, `OPENAI_MODEL`, and
+  `AI_PREFERENCE_TIMEOUT_SECONDS`, creates the asynchronous Responses API
+  client, and translates SDK failures into application errors.
+- `prompts.py` owns model instructions.
+- `preference_parser.py` validates model output through `ParsedPreferences`.
+
+Call `get_ai_client()` to reuse the process-wide configured client. Missing or
+invalid configuration raises `AIConfigurationError`. Timeouts, connection
+failures, provider HTTP failures, and empty responses use distinct error codes.
+FastAPI serializes every `AIClientError` as:
+
+```json
+{
+  "error": {
+    "code": "ai_request_timeout",
+    "message": "AI request timed out after 20 seconds"
+  }
+}
+```
+
+No AI client is created during application import, so health endpoints and
+non-AI features continue to work without an API key.
+
 Weekday and time normalization is centralized in `app/scheduler/time_utils.py`.
 Scheduling algorithms compare `Weekday` values and integer minutes since
 midnight rather than raw input strings. `app/normalization.py` remains as a

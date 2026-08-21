@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from .ai.client import AIClientError
 
 app = FastAPI(
     title="Calendar Agent API",
@@ -17,6 +20,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(AIClientError)
+async def handle_ai_client_error(
+    request: Request,
+    error: AIClientError,
+) -> JSONResponse:
+    del request
+    return JSONResponse(
+        status_code=error.status_code,
+        content={"error": {"code": error.code, "message": str(error)}},
+    )
 
 
 @app.get("/")
