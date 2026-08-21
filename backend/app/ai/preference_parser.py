@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Sequence
 from typing import Protocol
 
 from pydantic import ValidationError
 
-from ..models import ParsedPreferences
+from ..models import Course, ParsedPreferences, ScheduleRequest
 from .client import AIInvalidResponseError
+from .context import build_ai_course_context
 from .prompts import PREFERENCE_PARSER_INSTRUCTIONS
 
 
@@ -19,18 +22,39 @@ class PreferenceParser:
     def __init__(self, client: TextGenerationClient) -> None:
         self.client = client
 
-    async def parse(self, preference_text: str) -> ParsedPreferences:
+    async def parse(
+        self,
+        preference_text: str,
+        courses: Sequence[Course],
+    ) -> ParsedPreferences:
         text = preference_text.strip()
         if not text:
             raise ValueError("preference text must not be empty")
 
+        context = build_ai_course_context(courses)
+        input_payload = {
+            "preferenceText": text,
+            **context.model_dump(mode="json", by_alias=True),
+        }
         output = await self.client.generate_text(
             instructions=PREFERENCE_PARSER_INSTRUCTIONS,
-            input_text=text,
+            input_text=json.dumps(input_payload, separators=(",", ":")),
         )
         try:
-            return ParsedPreferences.model_validate_json(output)
+            parsed = ParsedPreferences.model_validate_json(output)
         except ValidationError as error:
             raise AIInvalidResponseError(
                 "AI response did not match the preference schema"
             ) from error
+
+        try:
+            ScheduleRequest(
+                courses=list(courses),
+                preferences=parsed.to_scheduler_preferences(),
+            )
+        except ValidationError as error:
+            raise AIInvalidResponseError(
+                "AI response referenced an unavailable course or section"
+            ) from error
+
+        return parsed

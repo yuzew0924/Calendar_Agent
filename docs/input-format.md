@@ -251,6 +251,20 @@ Execution categories are explicit:
   but they cannot create scheduler rules without first being mapped to a
   recognized field.
 
+### AI Course Context
+
+Preference parsing includes a minimal catalog generated from the request's
+validated courses. Each course contains only `courseCode`, `title`, and
+flattened sections. Each section contains only `id`, group-derived `type`,
+`status`, and meeting `days`, `startTime`, and `endTime`. Registration numbers,
+locations, dependency IDs, and group configuration are not sent to the model.
+
+The prompt may reference only courses and sections present in this catalog.
+After `ParsedPreferences` validation, the backend converts the result to
+`Preferences` and validates a new `ScheduleRequest` with the original courses.
+This second pass rejects invented course codes, invented section IDs, and fixed
+closed sections when `requireOpenSections` is true.
+
 ## ScheduleRequest
 
 | JSON field | Type | Required | Validation |

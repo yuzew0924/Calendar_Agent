@@ -27,8 +27,17 @@ The `app/ai/` package is the only OpenAI integration boundary:
 - `client.py` loads `OPENAI_API_KEY`, `OPENAI_MODEL`, and
   `AI_PREFERENCE_TIMEOUT_SECONDS`, creates the asynchronous Responses API
   client, and translates SDK failures into application errors.
+- `context.py` creates an allowlisted course catalog containing only course
+  code, title, section ID/type/status, and meeting days/start/end times.
 - `prompts.py` owns model instructions.
 - `preference_parser.py` validates model output through `ParsedPreferences`.
+
+The preference parser sends the user's text together with context built from
+the request's validated `courses`. It never sends SLNs, locations, dependency
+IDs, group configuration, or other unnecessary fields. The prompt forbids
+references outside that catalog. After schema validation, the parser builds a
+`ScheduleRequest` with the original courses, so nonexistent sections and closed
+fixed sections under open-only mode are rejected before reaching the solver.
 
 Call `get_ai_client()` to reuse the process-wide configured client. Missing or
 invalid configuration raises `AIConfigurationError`. Timeouts, connection

@@ -249,6 +249,7 @@ calendar-agent/
 │   │   ├── ai/
 │   │   │   ├── __init__.py
 │   │   │   ├── client.py
+│   │   │   ├── context.py
 │   │   │   ├── preference_parser.py
 │   │   │   └── prompts.py
 │   │   └── scheduler/
@@ -260,6 +261,7 @@ calendar-agent/
 │   └── tests/
 │       ├── ai/
 │       │   ├── test_client.py
+│       │   ├── test_context.py
 │       │   └── test_preference_parser.py
 │       ├── scheduler/
 │       │   ├── test_sample_data.py
