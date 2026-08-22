@@ -102,14 +102,32 @@ class AIClient:
             max_retries=0,
         )
 
-    async def generate_text(self, *, instructions: str, input_text: str) -> str:
+    async def generate_text(
+        self,
+        *,
+        instructions: str,
+        input_text: str,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str = "structured_response",
+    ) -> str:
         """Generate text and translate provider failures into stable app errors."""
+        request: dict[str, Any] = {
+            "model": self.settings.model,
+            "instructions": instructions,
+            "input": input_text,
+        }
+        if response_schema is not None:
+            request["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": response_schema_name,
+                    "strict": True,
+                    "schema": response_schema,
+                }
+            }
+
         try:
-            response = await self._sdk_client.responses.create(
-                model=self.settings.model,
-                instructions=instructions,
-                input=input_text,
-            )
+            response = await self._sdk_client.responses.create(**request)
         except APITimeoutError as error:
             raise AIRequestTimeoutError(
                 f"AI request timed out after {self.settings.timeout_seconds:g} seconds"

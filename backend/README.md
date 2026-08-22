@@ -29,7 +29,7 @@ The `app/ai/` package is the only OpenAI integration boundary:
   client, and translates SDK failures into application errors.
 - `context.py` creates an allowlisted course catalog containing only course
   code, title, section ID/type/status, and meeting days/start/end times.
-- `prompts.py` owns model instructions.
+- `prompts.py` owns model instructions and the strict JSON response schema.
 - `preference_parser.py` validates model output through `ParsedPreferences`.
 
 The preference parser sends the user's text together with context built from
@@ -38,6 +38,11 @@ IDs, group configuration, or other unnecessary fields. The prompt forbids
 references outside that catalog. After schema validation, the parser builds a
 `ScheduleRequest` with the original courses, so nonexistent sections and closed
 fixed sections under open-only mode are rejected before reaching the solver.
+The client sends the schema through the Responses API `text.format` structured
+output configuration. The schema requires every known field and rejects extra
+properties. Pydantic then performs a separate validation pass for `HH:MM`
+times, weekday codes, strict field types, fixed-section syntax, and consistent
+conflict or clarification metadata.
 
 Call `get_ai_client()` to reuse the process-wide configured client. Missing or
 invalid configuration raises `AIConfigurationError`. Timeouts, connection

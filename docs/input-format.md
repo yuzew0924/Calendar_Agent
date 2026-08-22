@@ -216,7 +216,10 @@ preference parser:
   "fixedSections": ["CSE 373 A", "CSE 373 AA"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
-  "softPreferences": ["Prefer compact schedules"]
+  "softPreferences": ["Prefer compact schedules"],
+  "conflicts": [],
+  "needsClarification": false,
+  "clarificationQuestions": []
 }
 ```
 
@@ -229,10 +232,21 @@ preference parser:
 | `requireOpenSections` | `boolean` | `true` | Hard filter after conversion |
 | `hardConstraints` | `string[]` | `[]` | Explanation/provenance only; never executed directly |
 | `softPreferences` | `string[]` | `[]` | Future ranking and explanation input |
+| `conflicts` | `string[]` | `[]` | Contradictions found in the user's request |
+| `needsClarification` | `boolean` | `false` | Whether user input is required before applying an uncertain requirement |
+| `clarificationQuestions` | `string[]` | `[]` | Focused questions for conflicts or unresolved meanings |
 
 Each fixed-section string must use `<course code> <section ID>`, such as
 `CSE 373 A`. `earliestStartIsHard: true` requires `earliestStart`. Day codes
 remain limited to `M`, `T`, `W`, `Th`, and `F`.
+
+AI calls use one fixed strict JSON schema. Structured output requires all ten
+fields, uses empty arrays, `false`, `true`, or `null` as documented defaults,
+and rejects additional properties. Direct Pydantic validation also accepts
+omitted optional fields and applies those defaults. A conflict requires
+`needsClarification: true` and at least one clarification question. Invalid
+JSON, non-`HH:MM` times, unsupported weekdays, and incorrect field types are
+rejected before scheduler conversion.
 
 Calling `to_scheduler_preferences()` converts fixed-section references into
 the scheduler map format, carries over open-only and earliest-start settings,

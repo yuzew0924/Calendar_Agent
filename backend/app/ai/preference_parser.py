@@ -9,11 +9,18 @@ from pydantic import ValidationError
 from ..models import Course, ParsedPreferences, ScheduleRequest
 from .client import AIInvalidResponseError
 from .context import build_ai_course_context
-from .prompts import PREFERENCE_PARSER_INSTRUCTIONS
+from .prompts import PREFERENCE_PARSER_INSTRUCTIONS, PREFERENCE_RESPONSE_SCHEMA
 
 
 class TextGenerationClient(Protocol):
-    async def generate_text(self, *, instructions: str, input_text: str) -> str: ...
+    async def generate_text(
+        self,
+        *,
+        instructions: str,
+        input_text: str,
+        response_schema: dict[str, object] | None = None,
+        response_schema_name: str = "structured_response",
+    ) -> str: ...
 
 
 class PreferenceParser:
@@ -39,6 +46,8 @@ class PreferenceParser:
         output = await self.client.generate_text(
             instructions=PREFERENCE_PARSER_INSTRUCTIONS,
             input_text=json.dumps(input_payload, separators=(",", ":")),
+            response_schema=PREFERENCE_RESPONSE_SCHEMA,
+            response_schema_name="parsed_preferences",
         )
         try:
             parsed = ParsedPreferences.model_validate_json(output)

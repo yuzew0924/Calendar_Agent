@@ -29,9 +29,9 @@ class FakeResponses:
     def __init__(self, *, result: Any = None, error: Exception | None = None) -> None:
         self.result = result
         self.error = error
-        self.last_request: dict[str, str] | None = None
+        self.last_request: dict[str, Any] | None = None
 
-    async def create(self, **request: str) -> Any:
+    async def create(self, **request: Any) -> Any:
         self.last_request = request
         if self.error is not None:
             raise self.error
@@ -137,6 +137,36 @@ def test_generate_text_uses_configured_model_and_returns_trimmed_text() -> None:
         "model": "test-model",
         "instructions": "Parse preferences",
         "input": "No Fridays",
+    }
+
+
+def test_generate_text_sends_strict_json_schema() -> None:
+    responses = FakeResponses(result=FakeResponse("{}"))
+    client = AIClient(settings(), sdk_client=FakeSDKClient(responses))
+    schema = {
+        "type": "object",
+        "properties": {"value": {"type": "string"}},
+        "required": ["value"],
+        "additionalProperties": False,
+    }
+
+    asyncio.run(
+        client.generate_text(
+            instructions="Return JSON",
+            input_text="Input",
+            response_schema=schema,
+            response_schema_name="test_schema",
+        )
+    )
+
+    assert responses.last_request is not None
+    assert responses.last_request["text"] == {
+        "format": {
+            "type": "json_schema",
+            "name": "test_schema",
+            "strict": True,
+            "schema": schema,
+        }
     }
 
 

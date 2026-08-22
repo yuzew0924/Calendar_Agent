@@ -1,5 +1,6 @@
 import asyncio
 import json
+from typing import Any
 
 import pytest
 
@@ -13,10 +14,21 @@ class FakeAIClient:
         self.output = output
         self.instructions: str | None = None
         self.input_text: str | None = None
+        self.response_schema: dict[str, Any] | None = None
+        self.response_schema_name: str | None = None
 
-    async def generate_text(self, *, instructions: str, input_text: str) -> str:
+    async def generate_text(
+        self,
+        *,
+        instructions: str,
+        input_text: str,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str = "structured_response",
+    ) -> str:
         self.instructions = instructions
         self.input_text = input_text
+        self.response_schema = response_schema
+        self.response_schema_name = response_schema_name
         return self.output
 
 
@@ -63,7 +75,10 @@ def test_preference_parser_validates_ai_json() -> None:
             "fixedSections": ["CSE 373 A"],
             "requireOpenSections": true,
             "hardConstraints": [],
-            "softPreferences": ["Prefer compact schedules"]
+            "softPreferences": ["Prefer compact schedules"],
+            "conflicts": [],
+            "needsClarification": false,
+            "clarificationQuestions": []
         }"""
     )
     parser = PreferenceParser(client)
@@ -83,10 +98,23 @@ def test_preference_parser_validates_ai_json() -> None:
         "No classes before 10 and fix CSE 373 A"
     )
     assert sent_payload["courses"][0]["sections"][0]["id"] == "A"
+    assert client.response_schema is not None
+    assert client.response_schema["additionalProperties"] is False
+    assert client.response_schema_name == "parsed_preferences"
 
 
-def test_preference_parser_rejects_invalid_ai_json() -> None:
-    parser = PreferenceParser(FakeAIClient("not json"))
+@pytest.mark.parametrize(
+    "output",
+    [
+        "not json",
+        '{"earliestStart": "10 AM"}',
+        '{"preferredDaysOff": ["Sunday"]}',
+        '{"requireOpenSections": "true"}',
+        '{"unknownField": true}',
+    ],
+)
+def test_preference_parser_rejects_invalid_ai_output(output: str) -> None:
+    parser = PreferenceParser(FakeAIClient(output))
 
     with pytest.raises(AIInvalidResponseError, match="preference schema"):
         asyncio.run(parser.parse("Prefer Fridays off", course_catalog()))

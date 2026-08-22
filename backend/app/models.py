@@ -8,6 +8,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StrictBool,
     field_serializer,
     field_validator,
     model_validator,
@@ -190,12 +191,15 @@ class ParsedPreferences(APIModel):
     """Strict structured output accepted from an AI preference parser."""
 
     earliest_start: time | None = None
-    earliest_start_is_hard: bool = False
+    earliest_start_is_hard: StrictBool = False
     preferred_days_off: list[DayCode] = Field(default_factory=list)
     fixed_sections: list[str] = Field(default_factory=list)
-    require_open_sections: bool = True
+    require_open_sections: StrictBool = True
     hard_constraints: list[str] = Field(default_factory=list)
     soft_preferences: list[str] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
+    needs_clarification: StrictBool = False
+    clarification_questions: list[str] = Field(default_factory=list)
 
     @field_validator("earliest_start", mode="before")
     @classmethod
@@ -231,7 +235,12 @@ class ParsedPreferences(APIModel):
                 )
         return references
 
-    @field_validator("hard_constraints", "soft_preferences")
+    @field_validator(
+        "hard_constraints",
+        "soft_preferences",
+        "conflicts",
+        "clarification_questions",
+    )
     @classmethod
     def validate_preference_notes(cls, notes: list[str]) -> list[str]:
         if any(not note for note in notes):
@@ -244,6 +253,16 @@ class ParsedPreferences(APIModel):
     def validate_hard_earliest_start(self) -> Self:
         if self.earliest_start_is_hard and self.earliest_start is None:
             raise ValueError("earliestStart is required when earliestStartIsHard is true")
+        if self.conflicts and not self.needs_clarification:
+            raise ValueError("conflicts require needsClarification to be true")
+        if self.needs_clarification and not self.clarification_questions:
+            raise ValueError(
+                "clarificationQuestions are required when needsClarification is true"
+            )
+        if self.clarification_questions and not self.needs_clarification:
+            raise ValueError(
+                "needsClarification must be true when clarificationQuestions are set"
+            )
         return self
 
     @field_serializer("earliest_start", when_used="json")

@@ -192,9 +192,19 @@ must first return JSON that validates as `ParsedPreferences`:
   "fixedSections": ["CSE 373 A"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
-  "softPreferences": ["Prefer compact schedules"]
+  "softPreferences": ["Prefer compact schedules"],
+  "conflicts": [],
+  "needsClarification": false,
+  "clarificationQuestions": []
 }
 ```
+
+The AI integration uses strict Structured Outputs and requests every field in
+this fixed schema. It may not return Markdown, explanatory text, extra fields,
+or course and section references absent from the supplied catalog. Vague
+preferences remain soft; contradictions are reported through `conflicts` and
+`clarificationQuestions` instead of being invented as scheduler constraints.
+The backend parses the JSON through Pydantic before any conversion.
 
 `to_scheduler_preferences()` converts recognized structured fields into the
 Week 2/3 `Preferences` model. Fixed sections and open-only are hard scheduler
