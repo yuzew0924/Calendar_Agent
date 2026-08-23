@@ -87,6 +87,27 @@ blocking even if the backend cannot infer the same contradiction independently.
 No AI client is created during application import, so health endpoints and
 non-AI features continue to work without an API key.
 
+## Preference Parsing Endpoint
+
+`POST /parse-preferences` accepts a validated course catalog and non-empty
+`preferenceText`. It sends only the allowlisted AI context, validates the strict
+JSON response as `ParsedPreferences`, grounds fixed-section references, and
+checks deterministic hard conflicts. Its response model is `ParsedPreferences`;
+raw provider output is never serialized to the caller.
+
+The endpoint intentionally does not invoke the scheduler. A successful caller
+may use `validate_and_convert_preferences()` to obtain `Preferences` for the
+Week 3 engine. Conversion preserves `requireOpenSections`, fixed sections,
+earliest-start semantics, `requiredDaysOff`, and `preferredDaysOff`. The solver
+uses only hard fields for filtering; `preferredDaysOff` and other soft metadata
+remain available for Week 5 scoring.
+
+Tests use injected fake AI clients and never call the real API:
+
+```bash
+pytest tests/ai
+```
+
 Weekday and time normalization is centralized in `app/scheduler/time_utils.py`.
 Scheduling algorithms compare `Weekday` values and integer minutes since
 midnight rather than raw input strings. `app/normalization.py` remains as a

@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Request
+from fastapi import Body, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .ai.client import AIClientError
+from .ai.client import AIClientError, get_ai_client
+from .ai.preference_parser import PreferenceParser
+from .models import ParsePreferencesRequest, ParsedPreferences
 
 app = FastAPI(
     title="Calendar Agent API",
@@ -45,3 +47,16 @@ def read_root() -> dict[str, str]:
 @app.get("/health")
 def read_health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def get_preference_parser() -> PreferenceParser:
+    return PreferenceParser(get_ai_client())
+
+
+@app.post("/parse-preferences", response_model=ParsedPreferences)
+async def parse_preferences(
+    payload: ParsePreferencesRequest = Body(),
+    parser: PreferenceParser = Depends(get_preference_parser),
+) -> ParsedPreferences:
+    """Parse natural language into validated, course-grounded preferences."""
+    return await parser.parse(payload.preferenceText, payload.courses)

@@ -338,6 +338,7 @@ def test_core_model_schemas_use_documented_fields() -> None:
         "requireOpenSections",
         "fixedSections",
         "requiredDaysOff",
+        "preferredDaysOff",
     }
     assert set(parsed_preferences_schema["properties"]) == {
         "earliestStart",

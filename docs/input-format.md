@@ -341,6 +341,60 @@ failure, provider errors, empty output, malformed JSON, Markdown-wrapped JSON,
 or Pydantic schema failure. Errors are translated into stable JSON responses,
 and scheduler conversion is not called when model output cannot be validated.
 
+## POST /parse-preferences
+
+Request body:
+
+| JSON field | Type | Required | Validation |
+|---|---|---|---|
+| `courses` | `Course[]` | Yes | At least one fully validated course |
+| `preferenceText` | `string` | Yes | Non-empty after trimming |
+
+Example:
+
+```json
+{
+  "courses": [
+    {
+      "code": "CSE 373",
+      "title": "Data Structures and Algorithms",
+      "groups": [
+        {
+          "type": "lecture",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "A",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "startTime": "10:30",
+                  "endTime": "11:20"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preferenceText": "Avoid early classes, prefer Friday off, and require CSE 373 A."
+}
+```
+
+Success returns a validated `ParsedPreferences` object. Request validation
+errors return HTTP 422. Provider and parsing failures use the stable AI errors
+documented in `backend/README.md`; hard preference conflicts return HTTP 409.
+No endpoint path returns unvalidated model text, substitutes fabricated
+preferences, or generates a schedule after an AI failure.
+
+After success, `validate_and_convert_preferences()` returns scheduler-facing
+`Preferences`. Fixed strings become the course-to-section mapping, open-only is
+preserved, hard earliest-start and required-day-off fields remain executable,
+and `preferredDaysOff` is retained only for later scoring. Free-text soft
+preferences never become hard filters by themselves.
+
 ## ScheduleRequest
 
 | JSON field | Type | Required | Validation |

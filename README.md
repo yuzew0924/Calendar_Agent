@@ -246,6 +246,63 @@ ranking or explanation and are not executed as filtering rules.
 }
 ```
 
+## Parse Preferences API
+
+`POST /parse-preferences` converts natural-language scheduling preferences into
+validated, course-grounded `ParsedPreferences`. The request must include the
+real course catalog because fixed sections are checked against it.
+
+```json
+{
+  "courses": [
+    {
+      "code": "CSE 373",
+      "title": "Data Structures and Algorithms",
+      "groups": [
+        {
+          "type": "lecture",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "A",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "startTime": "10:30",
+                  "endTime": "11:20"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preferenceText": "Avoid early classes, prefer Friday off, and require CSE 373 A."
+}
+```
+
+The response is the `ParsedPreferences` schema shown above. The endpoint never
+returns raw model output. Pydantic validation, course/section grounding, and
+hard-conflict checks complete before a response is returned. It does not invoke
+schedule generation; callers explicitly pass converted preferences to the
+scheduler in a later step.
+
+Run all backend tests:
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest
+```
+
+Run only AI parser and endpoint tests:
+
+```bash
+pytest tests/ai
+```
+
 ## Project Structure
 
 Current structure:

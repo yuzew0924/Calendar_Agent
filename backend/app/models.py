@@ -163,6 +163,7 @@ class Preferences(APIModel):
     require_open_sections: bool = True
     fixed_sections: dict[str, list[str]] = Field(default_factory=dict)
     required_days_off: list[DayCode] = Field(default_factory=list)
+    preferred_days_off: list[DayCode] = Field(default_factory=list)
 
     @field_validator("earliest_start", mode="before")
     @classmethod
@@ -183,11 +184,11 @@ class Preferences(APIModel):
                 raise ValueError("fixed section IDs must not contain duplicates")
         return fixed_sections
 
-    @field_validator("required_days_off")
+    @field_validator("required_days_off", "preferred_days_off")
     @classmethod
     def validate_unique_required_days(cls, days: list[DayCode]) -> list[DayCode]:
         if len(days) != len(set(days)):
-            raise ValueError("requiredDaysOff must not contain duplicates")
+            raise ValueError("day-off lists must not contain duplicates")
         return days
 
     @field_serializer("earliest_start", when_used="json")
@@ -293,6 +294,7 @@ class ParsedPreferences(APIModel):
             require_open_sections=self.require_open_sections,
             fixed_sections=fixed_sections,
             required_days_off=self.required_days_off,
+            preferred_days_off=self.preferred_days_off,
         )
 
 
@@ -335,6 +337,20 @@ class ScheduleRequest(APIModel):
                     )
 
         return self
+
+
+class ParsePreferencesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    courses: list[Course] = Field(min_length=1)
+    preferenceText: str = Field(min_length=1)
+
+    @field_validator("preferenceText")
+    @classmethod
+    def validate_preference_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("preferenceText must not be blank")
+        return value
 
 
 class SelectedSection(APIModel):

@@ -28,6 +28,7 @@ def test_ai_preferences_validate_and_convert_to_scheduler_preferences() -> None:
     assert preferences.require_open_sections
     assert preferences.fixed_sections == {"CSE 373": ["A", "AA"]}
     assert [day.value for day in preferences.required_days_off] == ["M"]
+    assert [day.value for day in preferences.preferred_days_off] == ["F"]
     assert parsed.preferred_days_off[0].value == "F"
     assert parsed.soft_preferences == ["Prefer compact schedules"]
 
