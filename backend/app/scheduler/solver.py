@@ -174,6 +174,19 @@ def schedule_satisfies_hard_constraints(
     ):
         return False
 
+    required_days_off = set(request.preferences.required_days_off)
+    for course_combination in candidate.courses:
+        for selection in course_combination.selections:
+            for meeting in selection.section.meetings:
+                if required_days_off.intersection(meeting.days):
+                    return False
+                if (
+                    request.preferences.earliest_start is not None
+                    and not request.preferences.allow_earlier_if_only_option
+                    and meeting.start_time < request.preferences.earliest_start
+                ):
+                    return False
+
     return not schedule_has_conflict(candidate)
 
 

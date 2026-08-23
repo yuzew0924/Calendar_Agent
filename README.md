@@ -189,6 +189,7 @@ must first return JSON that validates as `ParsedPreferences`:
   "earliestStart": "10:00",
   "earliestStartIsHard": true,
   "preferredDaysOff": ["F"],
+  "requiredDaysOff": [],
   "fixedSections": ["CSE 373 A"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
@@ -217,6 +218,17 @@ early" remains a soft preference with `earliestStart: null`, while "classes
 must not start before 10:00" may set a hard `10:00` boundary. When a mandatory
 meaning cannot be represented safely, the parser returns
 `needsClarification: true` with a focused clarification question.
+
+The backend independently checks obvious hard conflicts after parsing. It
+rejects fixed sections that meet on a required day off, start before a hard
+`earliestStart`, or select multiple alternatives from the same section group.
+AI-reported conflicts are also blocking. These cases return an
+`ai_preference_conflict` error and do not enter schedule generation.
+
+AI failures are fail-closed. Timeout, authentication, rate-limit, network,
+provider, empty-output, malformed-JSON, Markdown-wrapped JSON, and schema
+validation failures return explicit API errors. The backend does not substitute
+default preferences or generate a schedule after a parsing failure.
 
 `to_scheduler_preferences()` converts recognized structured fields into the
 Week 2/3 `Preferences` model. Fixed sections and open-only are hard scheduler

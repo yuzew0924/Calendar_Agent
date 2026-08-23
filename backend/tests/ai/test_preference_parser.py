@@ -6,6 +6,7 @@ import pytest
 
 from app.ai.client import AIInvalidResponseError
 from app.ai.preference_parser import (
+    AIPreferenceConflictError,
     PreferenceParser,
     build_section_index,
     validate_and_convert_preferences,
@@ -73,9 +74,10 @@ def course_catalog() -> list[Course]:
 def test_preference_parser_validates_ai_json() -> None:
     client = FakeAIClient(
         """{
-            "earliestStart": "10:00",
+            "earliestStart": "09:00",
             "earliestStartIsHard": true,
             "preferredDaysOff": ["F"],
+            "requiredDaysOff": [],
             "fixedSections": ["CSE 373 A"],
             "requireOpenSections": true,
             "hardConstraints": [],
@@ -111,6 +113,7 @@ def test_preference_parser_validates_ai_json() -> None:
     "output",
     [
         "not json",
+        "```json\n{}\n```",
         '{"earliestStart": "10 AM"}',
         '{"preferredDaysOff": ["Sunday"]}',
         '{"requireOpenSections": "true"}',
@@ -183,6 +186,7 @@ def test_vague_preference_output_does_not_create_hard_start_time() -> None:
                 "earliestStart": null,
                 "earliestStartIsHard": false,
                 "preferredDaysOff": ["F"],
+                "requiredDaysOff": [],
                 "fixedSections": [],
                 "requireOpenSections": true,
                 "hardConstraints": [],
@@ -202,3 +206,79 @@ def test_vague_preference_output_does_not_create_hard_start_time() -> None:
     assert parsed.soft_preferences == ["Avoid classes that are too early"]
     assert scheduler_preferences.earliest_start is None
     assert scheduler_preferences.fixed_sections == {}
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (
+            {
+                "fixedSections": ["CSE 373 A"],
+                "requiredDaysOff": ["M"],
+            },
+            "required day",
+        ),
+        (
+            {
+                "fixedSections": ["CSE 373 A"],
+                "earliestStart": "10:00",
+                "earliestStartIsHard": True,
+            },
+            "starts before",
+        ),
+        (
+            {
+                "fixedSections": ["CSE 373 A", "CSE 373 B"],
+                "requireOpenSections": False,
+            },
+            "mutually exclusive",
+        ),
+    ],
+)
+def test_backend_detects_fixed_section_conflicts(
+    payload: dict[str, object],
+    message: str,
+) -> None:
+    parsed = ParsedPreferences.model_validate(payload)
+
+    with pytest.raises(AIPreferenceConflictError, match=message):
+        validate_and_convert_preferences(parsed, course_catalog())
+
+
+def test_ai_reported_conflict_stops_before_scheduler_conversion() -> None:
+    parsed = ParsedPreferences.model_validate(
+        {
+            "conflicts": ["Friday is both required off and required for class"],
+            "needsClarification": True,
+            "clarificationQuestions": ["Which Friday requirement should change?"],
+        }
+    )
+
+    with pytest.raises(AIPreferenceConflictError, match="Which Friday requirement"):
+        validate_and_convert_preferences(parsed, course_catalog())
+
+
+def test_malformed_ai_output_never_reaches_conversion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conversion_called = False
+
+    def fail_if_called(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        nonlocal conversion_called
+        conversion_called = True
+
+    monkeypatch.setattr(
+        "app.ai.preference_parser.validate_and_convert_preferences",
+        fail_if_called,
+    )
+
+    with pytest.raises(AIInvalidResponseError):
+        asyncio.run(
+            PreferenceParser(FakeAIClient("```json\n{}\n```")).parse(
+                "Prefer Friday off",
+                course_catalog(),
+            )
+        )
+
+    assert not conversion_called

@@ -10,10 +10,12 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError
 from app.ai.client import (
     AIClient,
     AIClientSettings,
+    AIAuthenticationError,
     AIConfigurationError,
     AIConnectionFailure,
     AIInvalidResponseError,
     AIProviderError,
+    AIRateLimitError,
     AIRequestTimeoutError,
     get_ai_client,
 )
@@ -193,6 +195,28 @@ def test_generate_text_sends_strict_json_schema() -> None:
                 body=None,
             ),
             AIProviderError,
+        ),
+        (
+            APIStatusError(
+                "invalid key",
+                response=httpx.Response(
+                    401,
+                    request=httpx.Request("POST", "https://api.openai.com"),
+                ),
+                body=None,
+            ),
+            AIAuthenticationError,
+        ),
+        (
+            APIStatusError(
+                "rate limited",
+                response=httpx.Response(
+                    429,
+                    request=httpx.Request("POST", "https://api.openai.com"),
+                ),
+                body=None,
+            ),
+            AIRateLimitError,
         ),
     ],
 )

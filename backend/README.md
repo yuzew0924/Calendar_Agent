@@ -58,7 +58,10 @@ instead of an invented filter.
 
 Call `get_ai_client()` to reuse the process-wide configured client. Missing or
 invalid configuration raises `AIConfigurationError`. Timeouts, connection
-failures, provider HTTP failures, and empty responses use distinct error codes.
+failures, authentication failures, rate limits, provider HTTP failures, and
+empty responses use distinct error codes. Malformed JSON, Markdown-wrapped
+JSON, and schema-invalid output are rejected by the parser. No failure path
+creates fallback preferences or invokes schedule generation.
 FastAPI serializes every `AIClientError` as:
 
 ```json
@@ -69,6 +72,17 @@ FastAPI serializes every `AIClientError` as:
   }
 }
 ```
+
+Stable AI error codes include `ai_request_timeout`, `ai_authentication_failed`,
+`ai_rate_limited`, `ai_connection_failed`, `ai_provider_error`,
+`ai_invalid_response`, and `ai_preference_conflict`. Preference conflicts use
+HTTP 409; provider failures use 502, rate limits and missing configuration use
+503, and timeouts use 504.
+
+After grounding, the backend detects contradictions between fixed sections and
+hard earliest-start or required-day-off constraints. It also rejects multiple
+fixed alternatives from one section group. AI-reported conflicts remain
+blocking even if the backend cannot infer the same contradiction independently.
 
 No AI client is created during application import, so health endpoints and
 non-AI features continue to work without an API key.

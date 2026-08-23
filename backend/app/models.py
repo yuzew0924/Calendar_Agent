@@ -162,6 +162,7 @@ class Preferences(APIModel):
     minimum_long_gap_minutes: int | None = Field(default=None, ge=0)
     require_open_sections: bool = True
     fixed_sections: dict[str, list[str]] = Field(default_factory=dict)
+    required_days_off: list[DayCode] = Field(default_factory=list)
 
     @field_validator("earliest_start", mode="before")
     @classmethod
@@ -182,6 +183,13 @@ class Preferences(APIModel):
                 raise ValueError("fixed section IDs must not contain duplicates")
         return fixed_sections
 
+    @field_validator("required_days_off")
+    @classmethod
+    def validate_unique_required_days(cls, days: list[DayCode]) -> list[DayCode]:
+        if len(days) != len(set(days)):
+            raise ValueError("requiredDaysOff must not contain duplicates")
+        return days
+
     @field_serializer("earliest_start", when_used="json")
     def serialize_earliest_start(self, value: time | None) -> str | None:
         return value.strftime("%H:%M") if value is not None else None
@@ -193,6 +201,7 @@ class ParsedPreferences(APIModel):
     earliest_start: time | None = None
     earliest_start_is_hard: StrictBool = False
     preferred_days_off: list[DayCode] = Field(default_factory=list)
+    required_days_off: list[DayCode] = Field(default_factory=list)
     fixed_sections: list[str] = Field(default_factory=list)
     require_open_sections: StrictBool = True
     hard_constraints: list[str] = Field(default_factory=list)
@@ -206,11 +215,11 @@ class ParsedPreferences(APIModel):
     def validate_earliest_start_format(cls, value: object) -> object:
         return parse_time_string(value) if isinstance(value, str) else value
 
-    @field_validator("preferred_days_off")
+    @field_validator("preferred_days_off", "required_days_off")
     @classmethod
     def validate_unique_preferred_days(cls, days: list[DayCode]) -> list[DayCode]:
         if len(days) != len(set(days)):
-            raise ValueError("preferredDaysOff must not contain duplicates")
+            raise ValueError("day-off lists must not contain duplicates")
         return days
 
     @field_validator("fixed_sections")
@@ -283,6 +292,7 @@ class ParsedPreferences(APIModel):
             ),
             require_open_sections=self.require_open_sections,
             fixed_sections=fixed_sections,
+            required_days_off=self.required_days_off,
         )
 
 

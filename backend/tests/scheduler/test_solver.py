@@ -388,6 +388,60 @@ def test_fixed_section_conflict_with_another_course_produces_no_schedule() -> No
     assert generate_schedule_candidates(request) == ()
 
 
+@pytest.mark.parametrize(
+    "preferences",
+    [
+        {"requiredDaysOff": ["M"]},
+        {"earliestStart": "10:00", "allowEarlierIfOnlyOption": False},
+    ],
+)
+def test_hard_time_preferences_filter_schedule_candidates(
+    preferences: dict[str, object],
+) -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 373",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [section("A", day="M", start="09:30")],
+                        }
+                    ],
+                }
+            ],
+            "preferences": preferences,
+        }
+    )
+
+    assert generate_schedule_candidates(request) == ()
+
+
+def test_soft_earliest_start_does_not_filter_schedule_candidates() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 373",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [section("A", start="09:30")],
+                        }
+                    ],
+                }
+            ],
+            "preferences": {
+                "earliestStart": "10:00",
+                "allowEarlierIfOnlyOption": True,
+            },
+        }
+    )
+
+    assert len(generate_schedule_candidates(request)) == 1
+
+
 def test_closed_fixed_section_cannot_bypass_open_only_validation() -> None:
     with pytest.raises(ValidationError, match="fixed section must be open"):
         ScheduleRequest.model_validate(

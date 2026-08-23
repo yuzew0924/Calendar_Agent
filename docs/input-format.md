@@ -198,6 +198,7 @@ only through the separate `ParsedPreferences` validation and conversion step.
 | `minimumLongGapMinutes` | `minimum_long_gap_minutes` | `integer \| null` | `null` |
 | `requireOpenSections` | `require_open_sections` | `boolean` | `true` |
 | `fixedSections` | `fixed_sections` | `object<string, string[]>` | `{}` |
+| `requiredDaysOff` | `required_days_off` | `DayCode[]` | `[]` |
 
 Gap values must be non-negative. Every `fixedSections` key must match a course
 `code` in the request, and every listed section ID must exist in that course. If
@@ -213,6 +214,7 @@ preference parser:
   "earliestStart": "10:00",
   "earliestStartIsHard": true,
   "preferredDaysOff": ["F"],
+  "requiredDaysOff": [],
   "fixedSections": ["CSE 373 A", "CSE 373 AA"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
@@ -228,6 +230,7 @@ preference parser:
 | `earliestStart` | `HH:MM \| null` | `null` | Structured start-time preference |
 | `earliestStartIsHard` | `boolean` | `false` | Marks earliest start as hard instead of soft |
 | `preferredDaysOff` | `DayCode[]` | `[]` | Future ranking input only |
+| `requiredDaysOff` | `DayCode[]` | `[]` | Hard filter; selected meetings cannot use these days |
 | `fixedSections` | `string[]` | `[]` | Hard filter after conversion |
 | `requireOpenSections` | `boolean` | `true` | Hard filter after conversion |
 | `hardConstraints` | `string[]` | `[]` | Explanation/provenance only; never executed directly |
@@ -240,7 +243,7 @@ Each fixed-section string must use `<course code> <section ID>`, such as
 `CSE 373 A`. `earliestStartIsHard: true` requires `earliestStart`. Day codes
 remain limited to `M`, `T`, `W`, `Th`, and `F`.
 
-AI calls use one fixed strict JSON schema. Structured output requires all ten
+AI calls use one fixed strict JSON schema. Structured output requires all eleven
 fields, uses empty arrays, `false`, `true`, or `null` as documented defaults,
 and rejects additional properties. Direct Pydantic validation also accepts
 omitted optional fields and applies those defaults. A conflict requires
@@ -257,8 +260,8 @@ filtering.
 
 Execution categories are explicit:
 
-- Hard filtering inputs: `fixedSections`, `requireOpenSections`, and
-  `earliestStart` when `earliestStartIsHard` is true.
+- Hard filtering inputs: `fixedSections`, `requireOpenSections`,
+  `requiredDaysOff`, and `earliestStart` when `earliestStartIsHard` is true.
 - Soft ranking inputs: `preferredDaysOff` and a non-hard `earliestStart`.
 - Non-filtering parser metadata: text in `hardConstraints` and
   `softPreferences`. These strings may support future ranking or explanations,
@@ -315,6 +318,28 @@ be reassigned by mentioning it after a different course code.
 - If a mandatory request cannot be represented without guessing, the parser
   uses `needsClarification` and `clarificationQuestions` rather than inventing a
   time, weekday, course, or section.
+
+### Contradiction Checks
+
+Parsing stops with `ai_preference_conflict` when either the AI reports a
+conflict or the backend detects one of these deterministic contradictions:
+
+- A fixed section meets on a day in `requiredDaysOff`.
+- A fixed section starts before a hard `earliestStart`.
+- More than one mutually exclusive section is fixed in the same group.
+
+The error includes the detected conflicts and available clarification
+questions. No scheduler candidate is generated. Independently, the solver
+filters every candidate against hard earliest-start and required-day-off rules,
+so manually constructed requests cannot bypass the same constraints.
+
+### AI Failure Policy
+
+AI preference parsing fails closed. The backend never fabricates default
+preferences after timeout, authentication failure, rate limiting, network
+failure, provider errors, empty output, malformed JSON, Markdown-wrapped JSON,
+or Pydantic schema failure. Errors are translated into stable JSON responses,
+and scheduler conversion is not called when model output cannot be validated.
 
 ## ScheduleRequest
 

@@ -13,6 +13,10 @@ PREFERENCE_RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {"type": "string", "enum": ["M", "T", "W", "Th", "F"]},
         },
+        "requiredDaysOff": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["M", "T", "W", "Th", "F"]},
+        },
         "fixedSections": {"type": "array", "items": {"type": "string"}},
         "requireOpenSections": {"type": "boolean"},
         "hardConstraints": {"type": "array", "items": {"type": "string"}},
@@ -28,6 +32,7 @@ PREFERENCE_RESPONSE_SCHEMA: dict[str, Any] = {
         "earliestStart",
         "earliestStartIsHard",
         "preferredDaysOff",
+        "requiredDaysOff",
         "fixedSections",
         "requireOpenSections",
         "hardConstraints",
@@ -51,6 +56,7 @@ Field rules:
 - earliestStart: null or a 24-hour HH:MM time such as 09:30.
 - earliestStartIsHard: true only when the user clearly says the start limit is mandatory.
 - preferredDaysOff: use only M, T, W, Th, or F.
+- requiredDaysOff: use only M, T, W, Th, or F, and only for an explicit mandatory day-off requirement.
 - fixedSections: use only '<courseCode> <sectionId>' values present in the supplied courses catalog.
 - requireOpenSections: true unless the user explicitly permits closed sections.
 - hardConstraints: only clear mandatory requirements not already captured by a structured field.
@@ -69,6 +75,7 @@ Grounding rules:
 Ambiguity examples:
 - 'Not too early' is softPreferences only. Keep earliestStart null because no exact time was given.
 - 'Prefer Friday off' adds F to preferredDaysOff and remains a soft preference.
+- 'Friday must be free' adds F to requiredDaysOff.
 - 'I want an easier schedule', 'Try to avoid long gaps', and 'Prefer afternoons free' belong in softPreferences.
 - 'Classes must not start before 10:00' sets earliestStart to 10:00 and earliestStartIsHard to true.
 - 'Do not start before 10:00' sets earliestStart to 10:00 and earliestStartIsHard to true.

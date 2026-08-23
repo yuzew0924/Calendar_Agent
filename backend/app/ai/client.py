@@ -42,6 +42,16 @@ class AIProviderError(AIClientError):
     status_code = 502
 
 
+class AIAuthenticationError(AIClientError):
+    code = "ai_authentication_failed"
+    status_code = 502
+
+
+class AIRateLimitError(AIClientError):
+    code = "ai_rate_limited"
+    status_code = 503
+
+
 class AIInvalidResponseError(AIClientError):
     code = "ai_invalid_response"
     status_code = 502
@@ -135,6 +145,14 @@ class AIClient:
         except APIConnectionError as error:
             raise AIConnectionFailure("Unable to connect to the AI service") from error
         except APIStatusError as error:
+            if error.status_code in {401, 403}:
+                raise AIAuthenticationError(
+                    "AI service authentication failed"
+                ) from error
+            if error.status_code == 429:
+                raise AIRateLimitError(
+                    "AI service rate limit was exceeded; try again later"
+                ) from error
             raise AIProviderError(
                 f"AI service returned HTTP {error.status_code}"
             ) from error

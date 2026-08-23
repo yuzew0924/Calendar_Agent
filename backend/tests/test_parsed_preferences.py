@@ -10,6 +10,7 @@ def test_ai_preferences_validate_and_convert_to_scheduler_preferences() -> None:
             "earliestStart": "10:00",
             "earliestStartIsHard": True,
             "preferredDaysOff": ["F"],
+            "requiredDaysOff": ["M"],
             "fixedSections": ["CSE 373 A", "CSE 373 AA"],
             "requireOpenSections": True,
             "hardConstraints": ["Do not start before 10:00"],
@@ -26,6 +27,7 @@ def test_ai_preferences_validate_and_convert_to_scheduler_preferences() -> None:
     assert not preferences.allow_earlier_if_only_option
     assert preferences.require_open_sections
     assert preferences.fixed_sections == {"CSE 373": ["A", "AA"]}
+    assert [day.value for day in preferences.required_days_off] == ["M"]
     assert parsed.preferred_days_off[0].value == "F"
     assert parsed.soft_preferences == ["Prefer compact schedules"]
 
