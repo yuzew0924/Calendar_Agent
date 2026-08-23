@@ -44,6 +44,18 @@ properties. Pydantic then performs a separate validation pass for `HH:MM`
 times, weekday codes, strict field types, fixed-section syntax, and consistent
 conflict or clarification metadata.
 
+`build_section_index()` creates the grounding index used by
+`validate_and_convert_preferences()`. Conversion rejects unknown course codes,
+section IDs that do not belong to the referenced course, and closed fixed
+sections when open-only mode is active. Only then does it return the scheduler's
+`dict[str, list[str]]` fixed-section representation.
+
+The prompt treats approximate wording such as "not too early," "prefer Friday
+off," and "try to avoid long gaps" as soft. It leaves an unspecified start time
+as `null`. Explicit mandatory wording with an exact value may become a hard
+constraint; unresolved mandatory wording produces clarification metadata
+instead of an invented filter.
+
 Call `get_ai_client()` to reuse the process-wide configured client. Missing or
 invalid configuration raises `AIConfigurationError`. Timeouts, connection
 failures, provider HTTP failures, and empty responses use distinct error codes.

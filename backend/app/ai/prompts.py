@@ -65,4 +65,12 @@ Grounding rules:
 - If a fixed course or section cannot be matched exactly, do not add it to fixedSections; set needsClarification to true and ask a clarification question.
 - If wording is vague, preserve it in softPreferences instead of creating a hard constraint.
 - If requirements contradict each other, record the contradiction in conflicts, set needsClarification to true, and add at least one clarification question.
+
+Ambiguity examples:
+- 'Not too early' is softPreferences only. Keep earliestStart null because no exact time was given.
+- 'Prefer Friday off' adds F to preferredDaysOff and remains a soft preference.
+- 'I want an easier schedule', 'Try to avoid long gaps', and 'Prefer afternoons free' belong in softPreferences.
+- 'Classes must not start before 10:00' sets earliestStart to 10:00 and earliestStartIsHard to true.
+- 'Do not start before 10:00' sets earliestStart to 10:00 and earliestStartIsHard to true.
+- If a mandatory request is too ambiguous to represent safely, do not invent a value; set needsClarification to true and ask one focused question.
 """

@@ -27,3 +27,7 @@ def test_prompt_contains_required_output_and_grounding_rules() -> None:
     assert "softPreferences" in prompt
     assert "conflicts" in prompt
     assert "needsClarification" in prompt
+    assert "Not too early" in prompt
+    assert "Keep earliestStart null" in prompt
+    assert "must not start before 10:00" in prompt
+    assert "do not invent a value" in prompt

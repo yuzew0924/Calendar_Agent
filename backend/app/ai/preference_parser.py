@@ -6,7 +6,7 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from ..models import Course, ParsedPreferences, ScheduleRequest
+from ..models import Course, ParsedPreferences, Preferences, ScheduleRequest, Section
 from .client import AIInvalidResponseError
 from .context import build_ai_course_context
 from .prompts import PREFERENCE_PARSER_INSTRUCTIONS, PREFERENCE_RESPONSE_SCHEMA
@@ -21,6 +21,40 @@ class TextGenerationClient(Protocol):
         response_schema: dict[str, object] | None = None,
         response_schema_name: str = "structured_response",
     ) -> str: ...
+
+
+SectionIndex = dict[str, dict[str, Section]]
+
+
+def build_section_index(courses: Sequence[Course]) -> SectionIndex:
+    """Index every real section under its owning course code."""
+    return {
+        course.code: {
+            section.id: section
+            for group in course.groups
+            for section in group.sections
+        }
+        for course in courses
+    }
+
+
+def validate_and_convert_preferences(
+    parsed: ParsedPreferences,
+    courses: Sequence[Course],
+) -> Preferences:
+    """Ground AI references, then return the scheduler-facing preferences."""
+    section_index = build_section_index(courses)
+    for reference in parsed.fixed_sections:
+        course_code, section_id = reference.rsplit(" ", 1)
+        course_sections = section_index.get(course_code)
+        if course_sections is None:
+            raise ValueError(f"fixed section course does not exist: {course_code}")
+        if section_id not in course_sections:
+            raise ValueError(f"fixed section does not exist: {course_code} {section_id}")
+
+    preferences = parsed.to_scheduler_preferences()
+    ScheduleRequest(courses=list(courses), preferences=preferences)
+    return preferences
 
 
 class PreferenceParser:
@@ -57,11 +91,8 @@ class PreferenceParser:
             ) from error
 
         try:
-            ScheduleRequest(
-                courses=list(courses),
-                preferences=parsed.to_scheduler_preferences(),
-            )
-        except ValidationError as error:
+            validate_and_convert_preferences(parsed, courses)
+        except (ValidationError, ValueError) as error:
             raise AIInvalidResponseError(
                 "AI response referenced an unavailable course or section"
             ) from error

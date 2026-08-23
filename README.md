@@ -206,6 +206,18 @@ preferences remain soft; contradictions are reported through `conflicts` and
 `clarificationQuestions` instead of being invented as scheduler constraints.
 The backend parses the JSON through Pydantic before any conversion.
 
+Before scheduler conversion, the backend builds a section index from the
+validated request courses. A reference such as `CSE 373 A` must match both an
+existing `CSE 373` course and section `A` owned by that course. Valid references
+are converted to the scheduler format `{"CSE 373": ["A"]}`; invented references
+are rejected and never reach the solver.
+
+Ambiguous language is not promoted into a hard filter. For example, "not too
+early" remains a soft preference with `earliestStart: null`, while "classes
+must not start before 10:00" may set a hard `10:00` boundary. When a mandatory
+meaning cannot be represented safely, the parser returns
+`needsClarification: true` with a focused clarification question.
+
 `to_scheduler_preferences()` converts recognized structured fields into the
 Week 2/3 `Preferences` model. Fixed sections and open-only are hard scheduler
 filters. A hard earliest start maps to the engine's earliest-start fields.

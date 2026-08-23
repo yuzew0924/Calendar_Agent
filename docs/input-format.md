@@ -279,6 +279,43 @@ After `ParsedPreferences` validation, the backend converts the result to
 This second pass rejects invented course codes, invented section IDs, and fixed
 closed sections when `requireOpenSections` is true.
 
+The validation path builds an index shaped as
+`dict[courseCode, dict[sectionId, Section]]`. Every AI fixed-section reference
+must resolve through that index before conversion. For example:
+
+```json
+{
+  "fixedSections": ["CSE 373 A"]
+}
+```
+
+becomes the following scheduler preference only after successful grounding:
+
+```json
+{
+  "fixedSections": {
+    "CSE 373": ["A"]
+  }
+}
+```
+
+Unknown courses and sections are rejected. A section from another course cannot
+be reassigned by mentioning it after a different course code.
+
+### Ambiguous Preference Policy
+
+- Approximate requests such as "not too early" remain in `softPreferences`; no
+  concrete `earliestStart` is generated.
+- Language such as "prefer," "ideally," "hope," and "try to" is soft by
+  default.
+- Explicit mandatory language such as "must" or "do not start before 10:00"
+  may produce a hard constraint when the value is unambiguous.
+- Requests such as "prefer Friday off" may populate `preferredDaysOff`, but do
+  not become conflict-filtering rules.
+- If a mandatory request cannot be represented without guessing, the parser
+  uses `needsClarification` and `clarificationQuestions` rather than inventing a
+  time, weekday, course, or section.
+
 ## ScheduleRequest
 
 | JSON field | Type | Required | Validation |

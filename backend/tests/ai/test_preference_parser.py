@@ -5,8 +5,12 @@ from typing import Any
 import pytest
 
 from app.ai.client import AIInvalidResponseError
-from app.ai.preference_parser import PreferenceParser
-from app.models import Course
+from app.ai.preference_parser import (
+    PreferenceParser,
+    build_section_index,
+    validate_and_convert_preferences,
+)
+from app.models import Course, ParsedPreferences
 
 
 class FakeAIClient:
@@ -145,3 +149,56 @@ def test_preference_parser_rejects_empty_user_input_before_ai_call() -> None:
 
     with pytest.raises(ValueError, match="must not be empty"):
         asyncio.run(parser.parse("   ", course_catalog()))
+
+
+def test_section_index_groups_sections_by_real_course() -> None:
+    index = build_section_index(course_catalog())
+
+    assert set(index) == {"CSE 373"}
+    assert set(index["CSE 373"]) == {"A", "B"}
+
+
+def test_grounded_conversion_returns_scheduler_fixed_section_format() -> None:
+    parsed = ParsedPreferences.model_validate(
+        {"fixedSections": ["CSE 373 A"], "requireOpenSections": True}
+    )
+
+    preferences = validate_and_convert_preferences(parsed, course_catalog())
+
+    assert preferences.fixed_sections == {"CSE 373": ["A"]}
+
+
+@pytest.mark.parametrize("reference", ["CSE 999 A", "CSE 373 ZZ"])
+def test_grounded_conversion_rejects_invented_references(reference: str) -> None:
+    parsed = ParsedPreferences.model_validate({"fixedSections": [reference]})
+
+    with pytest.raises(ValueError, match="does not exist"):
+        validate_and_convert_preferences(parsed, course_catalog())
+
+
+def test_vague_preference_output_does_not_create_hard_start_time() -> None:
+    parser = PreferenceParser(
+        FakeAIClient(
+            """{
+                "earliestStart": null,
+                "earliestStartIsHard": false,
+                "preferredDaysOff": ["F"],
+                "fixedSections": [],
+                "requireOpenSections": true,
+                "hardConstraints": [],
+                "softPreferences": ["Avoid classes that are too early"],
+                "conflicts": [],
+                "needsClarification": false,
+                "clarificationQuestions": []
+            }"""
+        )
+    )
+
+    parsed = asyncio.run(
+        parser.parse("Not too early; preferably Friday off", course_catalog())
+    )
+    scheduler_preferences = validate_and_convert_preferences(parsed, course_catalog())
+
+    assert parsed.soft_preferences == ["Avoid classes that are too early"]
+    assert scheduler_preferences.earliest_start is None
+    assert scheduler_preferences.fixed_sections == {}
