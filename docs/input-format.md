@@ -199,6 +199,8 @@ only through the separate `ParsedPreferences` validation and conversion step.
 | `requireOpenSections` | `require_open_sections` | `boolean` | `true` |
 | `fixedSections` | `fixed_sections` | `object<string, string[]>` | `{}` |
 | `requiredDaysOff` | `required_days_off` | `DayCode[]` | `[]` |
+| `preferredDaysOff` | `preferred_days_off` | `DayCode[]` | `[]` |
+| `preferredTimeOfDay` | `preferred_time_of_day` | `morning \| afternoon \| evening \| none` | `none` |
 
 Gap values must be non-negative. Every `fixedSections` key must match a course
 `code` in the request, and every listed section ID must exist in that course. If
@@ -215,6 +217,7 @@ preference parser:
   "earliestStartIsHard": true,
   "preferredDaysOff": ["F"],
   "requiredDaysOff": [],
+  "preferredTimeOfDay": "afternoon",
   "fixedSections": ["CSE 373 A", "CSE 373 AA"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
@@ -231,6 +234,7 @@ preference parser:
 | `earliestStartIsHard` | `boolean` | `false` | Marks earliest start as hard instead of soft |
 | `preferredDaysOff` | `DayCode[]` | `[]` | Future ranking input only |
 | `requiredDaysOff` | `DayCode[]` | `[]` | Hard filter; selected meetings cannot use these days |
+| `preferredTimeOfDay` | `morning \| afternoon \| evening \| none` | `none` | Deterministic ranking input only |
 | `fixedSections` | `string[]` | `[]` | Hard filter after conversion |
 | `requireOpenSections` | `boolean` | `true` | Hard filter after conversion |
 | `hardConstraints` | `string[]` | `[]` | Explanation/provenance only; never executed directly |
@@ -243,7 +247,7 @@ Each fixed-section string must use `<course code> <section ID>`, such as
 `CSE 373 A`. `earliestStartIsHard: true` requires `earliestStart`. Day codes
 remain limited to `M`, `T`, `W`, `Th`, and `F`.
 
-AI calls use one fixed strict JSON schema. Structured output requires all eleven
+AI calls use one fixed strict JSON schema. Structured output requires all twelve
 fields, uses empty arrays, `false`, `true`, or `null` as documented defaults,
 and rejects additional properties. Direct Pydantic validation also accepts
 omitted optional fields and applies those defaults. A conflict requires
@@ -262,7 +266,8 @@ Execution categories are explicit:
 
 - Hard filtering inputs: `fixedSections`, `requireOpenSections`,
   `requiredDaysOff`, and `earliestStart` when `earliestStartIsHard` is true.
-- Soft ranking inputs: `preferredDaysOff` and a non-hard `earliestStart`.
+- Soft ranking inputs: `preferredDaysOff`, `preferredTimeOfDay`, and a non-hard
+  `earliestStart`.
 - Non-filtering parser metadata: text in `hardConstraints` and
   `softPreferences`. These strings may support future ranking or explanations,
   but they cannot create scheduler rules without first being mapped to a

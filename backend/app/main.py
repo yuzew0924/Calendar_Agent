@@ -4,7 +4,14 @@ from fastapi.responses import JSONResponse
 
 from .ai.client import AIClientError, get_ai_client
 from .ai.preference_parser import PreferenceParser
-from .models import ParsePreferencesRequest, ParsedPreferences
+from .ai.reason_writer import ReasonWriter
+from .generation import generate_ranked_schedules
+from .models import (
+    GenerateSchedulesApiRequest,
+    GenerateSchedulesApiResponse,
+    ParsePreferencesRequest,
+    ParsedPreferences,
+)
 
 app = FastAPI(
     title="Calendar Agent API",
@@ -60,3 +67,24 @@ async def parse_preferences(
 ) -> ParsedPreferences:
     """Parse natural language into validated, course-grounded preferences."""
     return await parser.parse(payload.preferenceText, payload.courses)
+
+
+@app.post(
+    "/api/schedules/generate",
+    response_model=GenerateSchedulesApiResponse,
+)
+async def generate_schedules(
+    payload: GenerateSchedulesApiRequest = Body(),
+) -> GenerateSchedulesApiResponse:
+    parser = get_preference_parser() if payload.preferenceText is not None else None
+    reason_writer = None
+    if payload.enhanceReasons:
+        try:
+            reason_writer = ReasonWriter(get_ai_client())
+        except AIClientError:
+            reason_writer = None
+    return await generate_ranked_schedules(
+        payload,
+        parser=parser,
+        reason_writer=reason_writer,
+    )

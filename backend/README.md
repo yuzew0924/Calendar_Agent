@@ -119,8 +119,9 @@ The framework-independent scheduler is split by responsibility:
   meeting overlap checks.
 - `app/scheduler/solver.py`: one-section-per-group combinations, open/fixed
   filtering, dependency checks, and conflict-free multi-course combinations.
-- `app/scheduler/scoring.py`: schedule scoring extension point.
-- `app/scheduler/explanations.py`: human-readable explanation extension point.
+- `app/scheduler/scoring.py`: daily gap analytics and deterministic scoring.
+- `app/scheduler/ranking.py`: stable Top N ranking and tie-breakers.
+- `app/scheduler/explanations.py`: fact-based reasons and tradeoffs.
 
 FastAPI routes should validate requests and serialize responses; scheduling
 rules belong in these modules so tests and other callers can use them directly.
@@ -163,6 +164,8 @@ The API exposes:
 
 - `GET /`
 - `GET /health`
+- `POST /parse-preferences`
+- `POST /api/schedules/generate`
 
 ## Test
 
@@ -176,3 +179,6 @@ The test suite covers the health endpoint, schemas, normalization, meeting
 overlap checks, and the framework-independent solver. It also validates
 `sample-data/courses.json` through `GenerateScheduleRequest`, runs the complete
 scheduler pipeline, and verifies conflict-free deterministic output.
+
+See `docs/ranking-and-api.md` for scoring rules, response fields, tie-breakers,
+and reason-rewrite safety.

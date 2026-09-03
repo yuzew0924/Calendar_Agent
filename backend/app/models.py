@@ -45,6 +45,13 @@ class SectionType(str, Enum):
     OTHER = "other"
 
 
+class PreferredTimeOfDay(str, Enum):
+    MORNING = "morning"
+    AFTERNOON = "afternoon"
+    EVENING = "evening"
+    NONE = "none"
+
+
 class Meeting(APIModel):
     days: list[DayCode] = Field(min_length=1)
     start_time: time
@@ -164,6 +171,7 @@ class Preferences(APIModel):
     fixed_sections: dict[str, list[str]] = Field(default_factory=dict)
     required_days_off: list[DayCode] = Field(default_factory=list)
     preferred_days_off: list[DayCode] = Field(default_factory=list)
+    preferred_time_of_day: PreferredTimeOfDay = PreferredTimeOfDay.NONE
 
     @field_validator("earliest_start", mode="before")
     @classmethod
@@ -203,6 +211,7 @@ class ParsedPreferences(APIModel):
     earliest_start_is_hard: StrictBool = False
     preferred_days_off: list[DayCode] = Field(default_factory=list)
     required_days_off: list[DayCode] = Field(default_factory=list)
+    preferred_time_of_day: PreferredTimeOfDay = PreferredTimeOfDay.NONE
     fixed_sections: list[str] = Field(default_factory=list)
     require_open_sections: StrictBool = True
     hard_constraints: list[str] = Field(default_factory=list)
@@ -295,6 +304,7 @@ class ParsedPreferences(APIModel):
             fixed_sections=fixed_sections,
             required_days_off=self.required_days_off,
             preferred_days_off=self.preferred_days_off,
+            preferred_time_of_day=self.preferred_time_of_day,
         )
 
 
@@ -353,6 +363,26 @@ class ParsePreferencesRequest(BaseModel):
         return value
 
 
+class GenerateSchedulesApiRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    courses: list[Course] = Field(min_length=1)
+    preferenceText: str | None = None
+    preferences: ParsedPreferences | None = None
+    topN: int = Field(default=5, ge=1, le=50)
+    enhanceReasons: bool = True
+
+    @model_validator(mode="after")
+    def validate_preference_source(self) -> Self:
+        if (self.preferenceText is None) == (self.preferences is None):
+            raise ValueError(
+                "exactly one of preferenceText or preferences must be provided"
+            )
+        if self.preferenceText is not None and not self.preferenceText.strip():
+            raise ValueError("preferenceText must not be blank")
+        return self
+
+
 class SelectedSection(APIModel):
     course_code: str = Field(min_length=1)
     group_type: SectionType
@@ -386,6 +416,63 @@ class GenerateScheduleResponse(APIModel):
         if [schedule.rank for schedule in self.schedules] != expected_ranks:
             raise ValueError("schedules must be ordered with consecutive ranks")
 
+        return self
+
+
+class ScoreBreakdownItem(APIModel):
+    score: float = Field(ge=0)
+    maximum: float = Field(gt=0)
+    details: str = Field(min_length=1)
+    affected_sections: list[str] = Field(default_factory=list)
+
+
+class ScheduleSection(APIModel):
+    course_code: str = Field(min_length=1)
+    group_type: SectionType
+    section_id: str = Field(min_length=1)
+    status: SectionStatus
+    sln: str | None = None
+    meetings: list[Meeting] = Field(default_factory=list)
+
+
+class RankedSchedule(APIModel):
+    rank: int = Field(ge=1)
+    score: float = Field(ge=0, le=100)
+    sections: list[ScheduleSection] = Field(min_length=1)
+    score_breakdown: dict[str, ScoreBreakdownItem]
+    reasons: list[str] = Field(default_factory=list)
+    tradeoffs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_score_breakdown(self) -> Self:
+        expected_rules = {
+            "earliestStart",
+            "preferredTimeOfDay",
+            "gaps",
+            "preferredDaysOff",
+        }
+        if set(self.score_breakdown) != expected_rules:
+            raise ValueError("scoreBreakdown must contain every scoring rule")
+        calculated = round(sum(item.score for item in self.score_breakdown.values()), 2)
+        if abs(calculated - self.score) > 0.001:
+            raise ValueError("score must equal the scoreBreakdown total")
+        return self
+
+
+class GenerateSchedulesApiResponse(APIModel):
+    interpreted_preferences: ParsedPreferences
+    schedules: list[RankedSchedule]
+    count: int = Field(ge=0)
+    warnings: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_ranked_schedules(self) -> Self:
+        if self.count != len(self.schedules):
+            raise ValueError("count must equal the number of returned schedules")
+        if [schedule.rank for schedule in self.schedules] != list(
+            range(1, self.count + 1)
+        ):
+            raise ValueError("schedules must use consecutive ranks starting at 1")
         return self
 
 

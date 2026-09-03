@@ -17,6 +17,10 @@ PREFERENCE_RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {"type": "string", "enum": ["M", "T", "W", "Th", "F"]},
         },
+        "preferredTimeOfDay": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "evening", "none"],
+        },
         "fixedSections": {"type": "array", "items": {"type": "string"}},
         "requireOpenSections": {"type": "boolean"},
         "hardConstraints": {"type": "array", "items": {"type": "string"}},
@@ -33,6 +37,7 @@ PREFERENCE_RESPONSE_SCHEMA: dict[str, Any] = {
         "earliestStartIsHard",
         "preferredDaysOff",
         "requiredDaysOff",
+        "preferredTimeOfDay",
         "fixedSections",
         "requireOpenSections",
         "hardConstraints",
@@ -57,6 +62,7 @@ Field rules:
 - earliestStartIsHard: true only when the user clearly says the start limit is mandatory.
 - preferredDaysOff: use only M, T, W, Th, or F.
 - requiredDaysOff: use only M, T, W, Th, or F, and only for an explicit mandatory day-off requirement.
+- preferredTimeOfDay: morning, afternoon, evening, or none.
 - fixedSections: use only '<courseCode> <sectionId>' values present in the supplied courses catalog.
 - requireOpenSections: true unless the user explicitly permits closed sections.
 - hardConstraints: only clear mandatory requirements not already captured by a structured field.

@@ -23,6 +23,7 @@ The planned architecture uses a React frontend for the interactive calendar inte
 - Apply preferences such as avoiding early classes or avoiding awkward gaps.
 - Generate multiple ranked schedule plans.
 - Explain why each schedule is recommended or penalized.
+- Return deterministic Top N recommendations through a single API.
 - Visualize each schedule as a weekly calendar.
 - Compare alternate course sets, such as `208 + 414 + 370 + 332` versus `351 + 414 + 370 + 332`.
 
@@ -32,7 +33,7 @@ The planned architecture uses a React frontend for the interactive calendar inte
 - Backend: Python, FastAPI
 - Scheduling Engine: Python service layer
 - Testing: pytest for backend tests, Vitest for frontend tests
-- Future AI Layer: OCR or LLM-assisted parsing for screenshots and pasted registration data
+- AI Layer: validated preference parsing and grounded reason rewriting; OCR remains future work
 
 ## Requirements
 
@@ -190,6 +191,7 @@ must first return JSON that validates as `ParsedPreferences`:
   "earliestStartIsHard": true,
   "preferredDaysOff": ["F"],
   "requiredDaysOff": [],
+  "preferredTimeOfDay": "afternoon",
   "fixedSections": ["CSE 373 A"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
@@ -302,6 +304,53 @@ Run only AI parser and endpoint tests:
 ```bash
 pytest tests/ai
 ```
+
+## Generate Schedules API
+
+`POST /api/schedules/generate` connects validated preferences, the conflict-free
+scheduler, deterministic scoring, Top N ranking, and grounded explanations.
+Send exactly one of `preferenceText` or a previously parsed `preferences`
+object. `topN` defaults to `5`; `enhanceReasons` defaults to `true`.
+
+```json
+{
+  "courses": [
+    {
+      "code": "CSE 373",
+      "title": "Data Structures and Algorithms",
+      "groups": [
+        {
+          "type": "lecture",
+          "choose": 1,
+          "sections": [
+            {
+              "id": "A",
+              "status": "open",
+              "meetings": [
+                {
+                  "days": ["M", "W", "F"],
+                  "startTime": "10:30",
+                  "endTime": "11:20"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preferenceText": "Prefer afternoon classes and require CSE 373 A.",
+  "topN": 5,
+  "enhanceReasons": true
+}
+```
+
+Every returned schedule has `rank`, `score`, `sections`, `scoreBreakdown`,
+`reasons`, and `tradeoffs`. Ranking is fully deterministic; AI never assigns a
+score or rank. AI may only rewrite existing explanations, and an invalid or
+unavailable rewrite falls back to deterministic text without failing schedule
+generation. See [`docs/ranking-and-api.md`](docs/ranking-and-api.md) for the
+complete response and scoring contract.
 
 ## Project Structure
 
@@ -483,7 +532,6 @@ Week 2 is complete when all of the following remain true:
 
 ## Known Issues / Limitations
 
-- The app is currently in the planning/scaffold stage.
 - Course data must initially be entered manually.
 - Screenshot parsing is planned but not implemented yet.
 - Seat availability refresh is planned but not implemented yet.
@@ -491,8 +539,6 @@ Week 2 is complete when all of the following remain true:
 
 ## Roadmap
 
-- Build the Python scheduling engine.
-- Add FastAPI endpoints for schedule generation.
 - Build the React course input and preference UI.
 - Add weekly calendar visualization.
 - Add sample course data.

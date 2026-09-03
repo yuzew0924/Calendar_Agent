@@ -9,6 +9,8 @@ from pydantic import ValidationError
 from app.models import (
     Course,
     GenerateScheduleResponse,
+    GenerateSchedulesApiRequest,
+    GenerateSchedulesApiResponse,
     Meeting,
     ParsedPreferences,
     Preferences,
@@ -339,12 +341,14 @@ def test_core_model_schemas_use_documented_fields() -> None:
         "fixedSections",
         "requiredDaysOff",
         "preferredDaysOff",
+        "preferredTimeOfDay",
     }
     assert set(parsed_preferences_schema["properties"]) == {
         "earliestStart",
         "earliestStartIsHard",
         "preferredDaysOff",
         "requiredDaysOff",
+        "preferredTimeOfDay",
         "fixedSections",
         "requireOpenSections",
         "hardConstraints",
@@ -440,3 +444,35 @@ def test_models_can_be_used_as_fastapi_schemas() -> None:
 
     assert request_schema["$ref"].endswith("/ScheduleRequest")
     assert response_schema["$ref"].endswith("/GenerateScheduleResponse")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"courses": []},
+        {"courses": [], "preferenceText": "text", "preferences": {}},
+    ],
+)
+def test_generate_api_request_requires_one_preference_source(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        GenerateSchedulesApiRequest.model_validate(payload)
+
+
+def test_generate_api_models_are_exposed_in_openapi() -> None:
+    from app.main import app
+
+    operation = app.openapi()["paths"]["/api/schedules/generate"]["post"]
+    request_schema = operation["requestBody"]["content"]["application/json"][
+        "schema"
+    ]
+    response_schema = operation["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+
+    assert request_schema["$ref"].endswith("/GenerateSchedulesApiRequest")
+    assert response_schema["$ref"].endswith("/GenerateSchedulesApiResponse")
+    assert "interpretedPreferences" in GenerateSchedulesApiResponse.model_json_schema(
+        by_alias=True
+    )["properties"]
