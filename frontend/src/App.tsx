@@ -51,6 +51,7 @@ type ParsedPreferences = {
   preferredDaysOff: DayCode[];
   requiredDaysOff: DayCode[];
   preferredTimeOfDay: "morning" | "afternoon" | "evening" | "none";
+  gapPreference: "compact" | "balanced" | "breaks" | "none";
   fixedSections: string[];
   requireOpenSections: boolean;
   hardConstraints: string[];
@@ -171,6 +172,7 @@ const defaultPreferences: ParsedPreferences = {
   preferredDaysOff: [],
   requiredDaysOff: [],
   preferredTimeOfDay: "none",
+  gapPreference: "none",
   fixedSections: [],
   requireOpenSections: true,
   hardConstraints: [],
@@ -468,6 +470,9 @@ function ReviewView({
     ...preferences.preferredDaysOff.map((day) => `Prefer ${dayLabels[day]} off`),
     ...(preferences.preferredTimeOfDay !== "none"
       ? [`Prefer ${preferences.preferredTimeOfDay} classes`]
+      : []),
+    ...(preferences.gapPreference !== "none"
+      ? [`Gap preference: ${preferences.gapPreference}`]
       : []),
     ...(!preferences.earliestStartIsHard && preferences.earliestStart
       ? [`Prefer classes at or after ${preferences.earliestStart}`]

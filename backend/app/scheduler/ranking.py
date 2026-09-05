@@ -47,7 +47,6 @@ def rank_schedules(
     evaluated.sort(
         key=lambda item: (
             -item[1].score,
-            item[1].total_gap_minutes,
             -item[1].earliest_meeting_minute,
             schedule_signature(item[0]),
         )

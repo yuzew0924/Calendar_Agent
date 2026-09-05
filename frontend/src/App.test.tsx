@@ -108,6 +108,7 @@ describe("App", () => {
       preferredDaysOff: ["F"],
       requiredDaysOff: [],
       preferredTimeOfDay: "afternoon",
+      gapPreference: "none",
       fixedSections: [],
       requireOpenSections: true,
       hardConstraints: [],

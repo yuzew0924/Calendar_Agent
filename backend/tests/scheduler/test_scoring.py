@@ -33,8 +33,10 @@ def candidate(*meetings: tuple[str, str, str, str]) -> ScheduleCandidate:
     return ScheduleCandidate(courses=tuple(courses))
 
 
-def score_for(schedule: ScheduleCandidate, rule: str) -> float:
-    evaluation = evaluate_schedule(schedule, Preferences())
+def score_for(
+    schedule: ScheduleCandidate, rule: str, preferences: Preferences | None = None
+) -> float:
+    evaluation = evaluate_schedule(schedule, preferences or Preferences())
     return next(item.score for item in evaluation.breakdown if item.rule_name == rule)
 
 
@@ -48,6 +50,9 @@ def test_daily_gaps_are_grouped_sorted_and_ignore_different_days() -> None:
     gaps = calculate_daily_gaps(schedule)
 
     assert [gap.minutes for gap in gaps[next(day for day in gaps if day.value == "M")]] == [70]
+    monday_gap = gaps[next(day for day in gaps if day.value == "M")][0]
+    assert monday_gap.start.strftime("%H:%M") == "10:20"
+    assert monday_gap.end.strftime("%H:%M") == "11:30"
     assert gaps[next(day for day in gaps if day.value == "T")] == ()
 
 
@@ -95,7 +100,7 @@ def test_afternoon_preference_rewards_afternoon_meetings() -> None:
     ).score
 
 
-def test_fragmented_and_long_gaps_reduce_gap_score() -> None:
+def test_compact_preference_rewards_shorter_gaps() -> None:
     compact = candidate(
         ("A", "M", "09:30", "10:20"),
         ("B", "M", "10:30", "11:20"),
@@ -109,8 +114,41 @@ def test_fragmented_and_long_gaps_reduce_gap_score() -> None:
         ("B", "M", "13:20", "14:10"),
     )
 
-    assert score_for(compact, "gaps") > score_for(fragmented, "gaps")
-    assert score_for(fragmented, "gaps") > score_for(long_gap, "gaps")
+    preferences = Preferences(gap_preference="compact")
+    assert score_for(compact, "gaps", preferences) > score_for(fragmented, "gaps", preferences)
+    assert score_for(fragmented, "gaps", preferences) > score_for(long_gap, "gaps", preferences)
+
+
+def test_gap_preference_none_is_neutral_and_silent() -> None:
+    compact = candidate(("A", "M", "09:30", "10:20"), ("B", "M", "10:30", "11:20"))
+    fragmented = candidate(("A", "M", "09:30", "10:20"), ("B", "M", "11:30", "12:20"))
+
+    compact_result = next(item for item in evaluate_schedule(compact, Preferences()).breakdown if item.rule_name == "gaps")
+    fragmented_result = next(item for item in evaluate_schedule(fragmented, Preferences()).breakdown if item.rule_name == "gaps")
+
+    assert compact_result.score == fragmented_result.score == compact_result.maximum
+    assert compact_result.reason is None
+    assert compact_result.tradeoff is None
+
+
+def test_same_schedule_receives_different_scores_for_gap_preferences() -> None:
+    schedule = candidate(("A", "M", "09:30", "10:20"), ("B", "M", "10:30", "11:20"))
+
+    scores = {
+        mode: score_for(schedule, "gaps", Preferences(gap_preference=mode))
+        for mode in ("compact", "balanced", "breaks")
+    }
+
+    assert scores["compact"] > scores["balanced"] > scores["breaks"]
+
+
+def test_breaks_and_balanced_preferences_reward_moderate_gaps() -> None:
+    consecutive = candidate(("A", "M", "09:30", "10:20"), ("B", "M", "10:30", "11:20"))
+    moderate = candidate(("A", "M", "09:30", "10:20"), ("B", "M", "11:00", "11:50"))
+
+    for mode in ("balanced", "breaks"):
+        preferences = Preferences(gap_preference=mode)
+        assert score_for(moderate, "gaps", preferences) > score_for(consecutive, "gaps", preferences)
 
 
 def test_preferred_day_off_is_soft_and_produces_tradeoff() -> None:
@@ -149,3 +187,18 @@ def test_ranking_is_stable_limited_and_uses_section_signature_tie_breaker() -> N
     assert len(first) == 1
     assert first[0].rank == 1
     assert first[0].candidate.courses[0].selections[0].section.id == "A"
+
+
+def test_ranking_does_not_prefer_shorter_gaps_when_preference_is_none() -> None:
+    longer_gap_a = candidate(
+        ("A", "M", "09:30", "10:20"),
+        ("C", "M", "12:20", "13:10"),
+    )
+    compact_b = candidate(
+        ("B", "M", "09:30", "10:20"),
+        ("D", "M", "10:30", "11:20"),
+    )
+
+    ranked = rank_schedules((compact_b, longer_gap_a), Preferences(), top_n=2)
+
+    assert ranked[0].candidate == longer_gap_a

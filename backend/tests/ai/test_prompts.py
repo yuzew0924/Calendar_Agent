@@ -25,6 +25,8 @@ def test_prompt_contains_required_output_and_grounding_rules() -> None:
     assert "M, T, W, Th, or F" in prompt
     assert "Never invent" in prompt
     assert "softPreferences" in prompt
+    assert "gapPreference" in prompt
+    assert "compact, balanced, breaks, or none" in prompt
     assert "conflicts" in prompt
     assert "needsClarification" in prompt
     assert "Not too early" in prompt

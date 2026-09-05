@@ -201,6 +201,7 @@ only through the separate `ParsedPreferences` validation and conversion step.
 | `requiredDaysOff` | `required_days_off` | `DayCode[]` | `[]` |
 | `preferredDaysOff` | `preferred_days_off` | `DayCode[]` | `[]` |
 | `preferredTimeOfDay` | `preferred_time_of_day` | `morning \| afternoon \| evening \| none` | `none` |
+| `gapPreference` | `gap_preference` | `compact \| balanced \| breaks \| none` | `none` |
 
 Gap values must be non-negative. Every `fixedSections` key must match a course
 `code` in the request, and every listed section ID must exist in that course. If
@@ -218,6 +219,7 @@ preference parser:
   "preferredDaysOff": ["F"],
   "requiredDaysOff": [],
   "preferredTimeOfDay": "afternoon",
+  "gapPreference": "compact",
   "fixedSections": ["CSE 373 A", "CSE 373 AA"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
@@ -235,6 +237,7 @@ preference parser:
 | `preferredDaysOff` | `DayCode[]` | `[]` | Future ranking input only |
 | `requiredDaysOff` | `DayCode[]` | `[]` | Hard filter; selected meetings cannot use these days |
 | `preferredTimeOfDay` | `morning \| afternoon \| evening \| none` | `none` | Deterministic ranking input only |
+| `gapPreference` | `compact \| balanced \| breaks \| none` | `none` | Controls gap scoring and explanations |
 | `fixedSections` | `string[]` | `[]` | Hard filter after conversion |
 | `requireOpenSections` | `boolean` | `true` | Hard filter after conversion |
 | `hardConstraints` | `string[]` | `[]` | Explanation/provenance only; never executed directly |
@@ -247,7 +250,7 @@ Each fixed-section string must use `<course code> <section ID>`, such as
 `CSE 373 A`. `earliestStartIsHard: true` requires `earliestStart`. Day codes
 remain limited to `M`, `T`, `W`, `Th`, and `F`.
 
-AI calls use one fixed strict JSON schema. Structured output requires all twelve
+AI calls use one fixed strict JSON schema. Structured output requires all thirteen
 fields, uses empty arrays, `false`, `true`, or `null` as documented defaults,
 and rejects additional properties. Direct Pydantic validation also accepts
 omitted optional fields and applies those defaults. A conflict requires

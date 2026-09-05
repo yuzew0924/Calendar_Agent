@@ -79,7 +79,7 @@ Scores range from 0 to 100 and do not use AI:
 |---|---:|---|
 | `earliestStart` | 25 | Penalizes each class day's first meeting before the preferred time; the penalty is halved when earlier classes are allowed as fallback |
 | `preferredTimeOfDay` | 20 | Awards points by the proportion of weekly meetings in morning, afternoon, or evening |
-| `gaps` | 30 | Combines compactness with penalties for 30-90 minute fragmented gaps and total idle time |
+| `gaps` | 30 | Applies compact, balanced, or breaks scoring only when the user expresses that preference; `none` is neutral |
 | `preferredDaysOff` | 25 | Awards points by the proportion of preferred days that remain free |
 
 Time-of-day buckets use meeting start time:
@@ -89,19 +89,26 @@ Time-of-day buckets use meeting start time:
 - Evening: 17:00 or later.
 - None: neutral and does not distinguish schedules.
 
-Daily gaps are calculated only between adjacent meetings on the same weekday.
-Touching meetings have a zero-minute gap. Days without classes do not create
-gaps. Gaps from 30 through 90 minutes receive a fragmented-gap penalty; gaps
-over 90 minutes are reported as long-gap tradeoffs.
+Daily gaps are objective data calculated only between adjacent meetings on the
+same weekday. Each gap records its weekday, start, end, minutes, and surrounding
+meetings. Touching meetings have a zero-minute gap; different days and days
+without classes do not create gaps.
+
+`gapPreference` controls interpretation. `compact` rewards short or consecutive
+gaps, `breaks` rewards useful rest periods, and `balanced` favors moderate gaps
+without either extreme. With `none`, every schedule receives the same neutral
+gap contribution and no compactness reason or gap trade-off is generated.
 
 ## Ranking
 
 Schedules are sorted by:
 
 1. Higher total score.
-2. Fewer total gap minutes.
-3. Later earliest weekly meeting.
-4. Lexicographic course and section signature.
+2. Later earliest weekly meeting.
+3. Lexicographic course and section signature.
+
+Gap minutes are not used as an implicit tie-breaker. They affect ranking only
+through an explicit `gapPreference` score.
 
 Ranks start at 1 and are stable for identical input. `topN` truncation happens
 only after all legal candidates are scored and sorted.

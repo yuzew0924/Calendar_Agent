@@ -52,6 +52,13 @@ class PreferredTimeOfDay(str, Enum):
     NONE = "none"
 
 
+class GapPreference(str, Enum):
+    COMPACT = "compact"
+    BALANCED = "balanced"
+    BREAKS = "breaks"
+    NONE = "none"
+
+
 class Meeting(APIModel):
     days: list[DayCode] = Field(min_length=1)
     start_time: time
@@ -172,6 +179,7 @@ class Preferences(APIModel):
     required_days_off: list[DayCode] = Field(default_factory=list)
     preferred_days_off: list[DayCode] = Field(default_factory=list)
     preferred_time_of_day: PreferredTimeOfDay = PreferredTimeOfDay.NONE
+    gap_preference: GapPreference = GapPreference.NONE
 
     @field_validator("earliest_start", mode="before")
     @classmethod
@@ -212,6 +220,7 @@ class ParsedPreferences(APIModel):
     preferred_days_off: list[DayCode] = Field(default_factory=list)
     required_days_off: list[DayCode] = Field(default_factory=list)
     preferred_time_of_day: PreferredTimeOfDay = PreferredTimeOfDay.NONE
+    gap_preference: GapPreference = GapPreference.NONE
     fixed_sections: list[str] = Field(default_factory=list)
     require_open_sections: StrictBool = True
     hard_constraints: list[str] = Field(default_factory=list)
@@ -305,6 +314,7 @@ class ParsedPreferences(APIModel):
             required_days_off=self.required_days_off,
             preferred_days_off=self.preferred_days_off,
             preferred_time_of_day=self.preferred_time_of_day,
+            gap_preference=self.gap_preference,
         )
 
 

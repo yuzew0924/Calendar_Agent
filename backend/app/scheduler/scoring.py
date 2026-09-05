@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import time
 
-from ..models import Preferences, PreferredTimeOfDay
+from ..models import GapPreference, Preferences, PreferredTimeOfDay
 from .solver import ScheduleCandidate
 from .time_utils import DayCode, time_to_minutes
 
@@ -25,6 +25,8 @@ class MeetingFact:
 @dataclass(frozen=True, slots=True)
 class GapDetail:
     day: DayCode
+    start: time
+    end: time
     minutes: int
     before: MeetingFact
     after: MeetingFact
@@ -90,6 +92,8 @@ def calculate_daily_gaps(
         gaps[day] = tuple(
             GapDetail(
                 day=day,
+                start=before.end,
+                end=after.start,
                 minutes=time_to_minutes(after.start) - time_to_minutes(before.end),
                 before=before,
                 after=after,
@@ -186,42 +190,50 @@ def _score_time_of_day(
     )
 
 
-def _score_gaps(candidate: ScheduleCandidate) -> ScoringRuleResult:
+def _score_gaps(
+    candidate: ScheduleCandidate, preferences: Preferences
+) -> ScoringRuleResult:
     maximum = 30.0
     gaps = tuple(
         gap for daily in calculate_daily_gaps(candidate).values() for gap in daily
     )
-    fragmented = [gap for gap in gaps if 30 <= gap.minutes <= 90]
-    long_gaps = [gap for gap in gaps if gap.minutes > 90]
     total_gap = sum(max(0, gap.minutes) for gap in gaps)
-    fragmented_penalty = min(
-        18.0, sum(4 if gap.minutes < 60 else 6 for gap in fragmented)
-    )
-    compactness_penalty = min(12.0, total_gap / 60 * 2)
-    score = max(0.0, maximum - fragmented_penalty - compactness_penalty)
-    affected = tuple(
-        dict.fromkeys(
-            label
-            for gap in (*fragmented, *long_gaps)
-            for label in (gap.before.label, gap.after.label)
+    mode = preferences.gap_preference
+    details = f"{total_gap} total idle minute(s) across {len(gaps)} adjacent class gap(s)"
+    if mode is GapPreference.NONE:
+        return ScoringRuleResult(
+            "gaps", maximum, maximum, f"Gap preference not set; {details}"
         )
-    )
-    if not fragmented and not long_gaps:
-        reason = "No fragmented or long gaps between classes"
-        tradeoff = None
+
+    if mode is GapPreference.COMPACT:
+        penalties = [
+            0 if gap.minutes <= 10 else 2 if gap.minutes < 30 else 7 if gap.minutes <= 90 else 12
+            for gap in gaps
+        ]
+        reason = "Classes are consecutive or nearly consecutive" if gaps and all(gap.minutes <= 10 for gap in gaps) else None
+        tradeoff = f"{sum(gap.minutes >= 30 for gap in gaps)} gap(s) are at least 30 minutes" if any(gap.minutes >= 30 for gap in gaps) else None
+    elif mode is GapPreference.BREAKS:
+        penalties = [
+            8 if gap.minutes <= 10 else 2 if gap.minutes < 30 else 0 if gap.minutes <= 90 else 4 if gap.minutes <= 150 else 8
+            for gap in gaps
+        ]
+        reason = "Provides useful breaks between classes" if gaps and any(30 <= gap.minutes <= 90 for gap in gaps) else None
+        tradeoff = "Some classes are consecutive with little recovery time" if any(gap.minutes <= 10 for gap in gaps) else None
     else:
-        reason = None
-        pieces = []
-        if fragmented:
-            pieces.append(f"{len(fragmented)} fragmented gap(s) of 30-90 minutes")
-        if long_gaps:
-            pieces.append(f"{len(long_gaps)} long gap(s) over 90 minutes")
-        tradeoff = "; ".join(pieces)
+        penalties = [
+            5 if gap.minutes <= 10 else 0 if gap.minutes <= 60 else 4 if gap.minutes <= 90 else 9
+            for gap in gaps
+        ]
+        reason = "Provides moderate breaks without excessive fragmentation" if gaps and all(11 <= gap.minutes <= 60 for gap in gaps) else None
+        tradeoff = "The day is either tightly packed or widely fragmented" if any(gap.minutes <= 10 or gap.minutes > 90 for gap in gaps) else None
+
+    score = max(0.0, maximum - sum(penalties))
+    affected = tuple(dict.fromkeys(label for gap in gaps for label in (gap.before.label, gap.after.label)))
     return ScoringRuleResult(
         "gaps",
         round(score, 2),
         maximum,
-        f"{total_gap} total idle minute(s) across {len(gaps)} adjacent class gap(s)",
+        f"{mode.value} preference: {details}",
         reason=reason,
         tradeoff=tradeoff,
         affected_sections=affected,
@@ -272,7 +284,7 @@ def evaluate_schedule(
     breakdown = (
         _score_earliest_start(facts, preferences),
         _score_time_of_day(facts, preferences),
-        _score_gaps(candidate),
+        _score_gaps(candidate, preferences),
         _score_preferred_days_off(facts, preferences),
     )
     gaps = calculate_daily_gaps(candidate)

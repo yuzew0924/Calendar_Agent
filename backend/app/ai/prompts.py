@@ -21,6 +21,10 @@ PREFERENCE_RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "string",
             "enum": ["morning", "afternoon", "evening", "none"],
         },
+        "gapPreference": {
+            "type": "string",
+            "enum": ["compact", "balanced", "breaks", "none"],
+        },
         "fixedSections": {"type": "array", "items": {"type": "string"}},
         "requireOpenSections": {"type": "boolean"},
         "hardConstraints": {"type": "array", "items": {"type": "string"}},
@@ -38,6 +42,7 @@ PREFERENCE_RESPONSE_SCHEMA: dict[str, Any] = {
         "preferredDaysOff",
         "requiredDaysOff",
         "preferredTimeOfDay",
+        "gapPreference",
         "fixedSections",
         "requireOpenSections",
         "hardConstraints",
@@ -63,6 +68,7 @@ Field rules:
 - preferredDaysOff: use only M, T, W, Th, or F.
 - requiredDaysOff: use only M, T, W, Th, or F, and only for an explicit mandatory day-off requirement.
 - preferredTimeOfDay: morning, afternoon, evening, or none.
+- gapPreference: compact, balanced, breaks, or none. Use none unless the user expresses a gap preference.
 - fixedSections: use only '<courseCode> <sectionId>' values present in the supplied courses catalog.
 - requireOpenSections: true unless the user explicitly permits closed sections.
 - hardConstraints: only clear mandatory requirements not already captured by a structured field.
@@ -82,7 +88,10 @@ Ambiguity examples:
 - 'Not too early' is softPreferences only. Keep earliestStart null because no exact time was given.
 - 'Prefer Friday off' adds F to preferredDaysOff and remains a soft preference.
 - 'Friday must be free' adds F to requiredDaysOff.
-- 'I want an easier schedule', 'Try to avoid long gaps', and 'Prefer afternoons free' belong in softPreferences.
+- 'Keep classes close together' sets gapPreference to compact.
+- 'I want moderate gaps' sets gapPreference to balanced.
+- 'I want breaks between classes' sets gapPreference to breaks.
+- 'I want an easier schedule' and 'Prefer afternoons free' belong in softPreferences without setting gapPreference.
 - 'Classes must not start before 10:00' sets earliestStart to 10:00 and earliestStartIsHard to true.
 - 'Do not start before 10:00' sets earliestStart to 10:00 and earliestStartIsHard to true.
 - If a mandatory request is too ambiguous to represent safely, do not invent a value; set needsClarification to true and ask one focused question.

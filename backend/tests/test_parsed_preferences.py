@@ -15,6 +15,7 @@ def test_ai_preferences_validate_and_convert_to_scheduler_preferences() -> None:
             "requireOpenSections": True,
             "hardConstraints": ["Do not start before 10:00"],
             "softPreferences": ["Prefer compact schedules"],
+            "gapPreference": "compact",
             "conflicts": [],
             "needsClarification": False,
             "clarificationQuestions": [],
@@ -31,6 +32,7 @@ def test_ai_preferences_validate_and_convert_to_scheduler_preferences() -> None:
     assert [day.value for day in preferences.preferred_days_off] == ["F"]
     assert parsed.preferred_days_off[0].value == "F"
     assert parsed.soft_preferences == ["Prefer compact schedules"]
+    assert preferences.gap_preference.value == "compact"
 
 
 def test_soft_earliest_start_allows_earlier_fallback_after_conversion() -> None:
@@ -47,6 +49,7 @@ def test_soft_earliest_start_allows_earlier_fallback_after_conversion() -> None:
         {"earliestStart": "10 AM"},
         {"earliestStartIsHard": True},
         {"preferredDaysOff": ["Sunday"]},
+        {"gapPreference": "short"},
         {"fixedSections": ["CSE373A"]},
         {"fixedSections": ["CSE 373 a"]},
         {"softPreferences": [""]},

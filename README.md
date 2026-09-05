@@ -208,6 +208,7 @@ must first return JSON that validates as `ParsedPreferences`:
   "preferredDaysOff": ["F"],
   "requiredDaysOff": [],
   "preferredTimeOfDay": "afternoon",
+  "gapPreference": "compact",
   "fixedSections": ["CSE 373 A"],
   "requireOpenSections": true,
   "hardConstraints": ["Do not start before 10:00"],
