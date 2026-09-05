@@ -1,277 +1,242 @@
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Bot,
   CalendarDays,
+  Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
   ChevronRight,
-  CirclePlus,
-  Info,
-  Menu,
-  Plus,
-  SendHorizontal,
-  Star,
-  User
+  ClipboardPaste,
+  FileJson,
+  LoaderCircle,
+  RotateCcw,
+  Sparkles
 } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
-type ViewMode = "edit" | "options";
-type EventTone = "purple" | "green" | "blue" | "orange";
+type DayCode = "M" | "T" | "W" | "Th" | "F";
+type Stage = "input" | "review" | "results";
 type BackendState = "checking" | "online" | "unavailable";
 
-type CalendarEvent = {
-  course: string;
-  section: string;
-  time: string;
-  room: string;
-  day: number;
-  start: number;
-  end: number;
-  tone: EventTone;
+type Meeting = {
+  days: DayCode[];
+  startTime: string;
+  endTime: string;
+  location?: string | null;
 };
 
-const courseTabs = ["MATH 208", "CSE 414", "INFO 370", "CSE 332"];
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+type Section = {
+  id: string;
+  status: "open" | "closed" | "unknown";
+  sln?: string | null;
+  meetings: Meeting[];
+};
 
-const lectureGroups = [
+type SectionGroup = {
+  type: string;
+  choose?: number;
+  sections: Section[];
+};
+
+type Course = {
+  code: string;
+  title?: string | null;
+  groups: SectionGroup[];
+};
+
+type ParsedPreferences = {
+  earliestStart: string | null;
+  earliestStartIsHard: boolean;
+  preferredDaysOff: DayCode[];
+  requiredDaysOff: DayCode[];
+  preferredTimeOfDay: "morning" | "afternoon" | "evening" | "none";
+  fixedSections: string[];
+  requireOpenSections: boolean;
+  hardConstraints: string[];
+  softPreferences: string[];
+  conflicts: string[];
+  needsClarification: boolean;
+  clarificationQuestions: string[];
+};
+
+type ScoreBreakdownItem = {
+  score: number;
+  maximum: number;
+  details: string;
+  affectedSections: string[];
+};
+
+type ScheduleSection = {
+  courseCode: string;
+  groupType: string;
+  sectionId: string;
+  status: string;
+  sln?: string | null;
+  meetings: Meeting[];
+};
+
+type RankedSchedule = {
+  rank: number;
+  score: number;
+  sections: ScheduleSection[];
+  scoreBreakdown: Record<string, ScoreBreakdownItem>;
+  reasons: string[];
+  tradeoffs: string[];
+};
+
+type GenerateResponse = {
+  interpretedPreferences: ParsedPreferences;
+  schedules: RankedSchedule[];
+  count: number;
+  warnings: string[];
+};
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(
+  /\/$/,
+  ""
+);
+
+const sampleCourses: Course[] = [
   {
-    name: "Lecture A",
-    time: "MWF 12:30 - 1:20 PM",
-    status: "Open",
-    quizzes: [
-      { id: "AA", time: "Thu 12:30 - 1:20 PM", status: "Closed" },
-      { id: "AB", time: "Thu 1:30 - 2:20 PM", status: "Closed" },
-      { id: "AC", time: "Thu 2:30 - 3:20 PM", status: "Closed" },
-      { id: "AD", time: "Thu 3:30 - 4:20 PM", status: "Open" },
-      { id: "AE", time: "Thu 11:30 AM - 12:20 PM", status: "Closed" },
-      { id: "AF", time: "Thu 12:30 - 1:20 PM", status: "Open" }
+    code: "CSE 373",
+    title: "Data Structures and Algorithms",
+    groups: [
+      {
+        type: "lecture",
+        choose: 1,
+        sections: [
+          {
+            id: "A",
+            status: "open",
+            meetings: [
+              { days: ["M", "W", "F"], startTime: "09:30", endTime: "10:20" }
+            ]
+          },
+          {
+            id: "B",
+            status: "open",
+            meetings: [
+              { days: ["M", "W", "F"], startTime: "11:30", endTime: "12:20" }
+            ]
+          }
+        ]
+      },
+      {
+        type: "quiz",
+        choose: 1,
+        sections: [
+          {
+            id: "AA",
+            status: "open",
+            meetings: [{ days: ["Th"], startTime: "12:30", endTime: "13:20" }]
+          },
+          {
+            id: "AB",
+            status: "closed",
+            meetings: [{ days: ["Th"], startTime: "14:30", endTime: "15:20" }]
+          }
+        ]
+      }
     ]
   },
   {
-    name: "Lecture B",
-    time: "MWF 3:30 - 4:20 PM",
-    status: "Open",
-    quizzes: [
-      { id: "BA", time: "Thu 1:30 - 2:20 PM", status: "Open" },
-      { id: "BB", time: "Thu 2:30 - 3:20 PM", status: "Open" },
-      { id: "BC", time: "Thu 3:30 - 4:20 PM", status: "Open" }
+    code: "INFO 370",
+    title: "Core Methods in Data Science",
+    groups: [
+      {
+        type: "lecture",
+        choose: 1,
+        sections: [
+          {
+            id: "A",
+            status: "open",
+            meetings: [{ days: ["T", "Th"], startTime: "10:30", endTime: "11:50" }]
+          },
+          {
+            id: "B",
+            status: "open",
+            meetings: [{ days: ["T", "Th"], startTime: "13:30", endTime: "14:50" }]
+          }
+        ]
+      }
     ]
   }
 ];
 
-const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-
-const calendarEvents: CalendarEvent[] = [
-  {
-    course: "CSE 414",
-    section: "A",
-    time: "9:30 - 10:45",
-    room: "EECS 101",
-    day: 0,
-    start: 570,
-    end: 645,
-    tone: "purple"
-  },
-  {
-    course: "CSE 414",
-    section: "A",
-    time: "9:30 - 10:45",
-    room: "EECS 101",
-    day: 2,
-    start: 570,
-    end: 645,
-    tone: "purple"
-  },
-  {
-    course: "CSE 414",
-    section: "A",
-    time: "9:30 - 10:45",
-    room: "EECS 101",
-    day: 4,
-    start: 570,
-    end: 645,
-    tone: "purple"
-  },
-  {
-    course: "MATH 208",
-    section: "A",
-    time: "10:30 - 11:20",
-    room: "MCB 247",
-    day: 0,
-    start: 630,
-    end: 680,
-    tone: "green"
-  },
-  {
-    course: "MATH 208",
-    section: "A",
-    time: "10:30 - 11:20",
-    room: "MCB 247",
-    day: 2,
-    start: 630,
-    end: 680,
-    tone: "green"
-  },
-  {
-    course: "MATH 208",
-    section: "A",
-    time: "10:30 - 11:20",
-    room: "MCB 247",
-    day: 4,
-    start: 630,
-    end: 680,
-    tone: "green"
-  },
-  {
-    course: "INFO 370",
-    section: "B",
-    time: "11:00 - 12:15",
-    room: "DOW 233",
-    day: 0,
-    start: 660,
-    end: 735,
-    tone: "blue"
-  },
-  {
-    course: "INFO 370",
-    section: "B",
-    time: "11:00 - 12:15",
-    room: "DOW 233",
-    day: 2,
-    start: 660,
-    end: 735,
-    tone: "blue"
-  },
-  {
-    course: "CSE 332",
-    section: "A",
-    time: "11:00 - 12:15",
-    room: "ENG 103",
-    day: 1,
-    start: 660,
-    end: 735,
-    tone: "orange"
-  },
-  {
-    course: "CSE 332",
-    section: "A",
-    time: "11:00 - 12:15",
-    room: "ENG 103",
-    day: 3,
-    start: 660,
-    end: 735,
-    tone: "orange"
-  },
-  {
-    course: "MATH 208",
-    section: "QA",
-    time: "1:00 - 1:50",
-    room: "MCB 315",
-    day: 1,
-    start: 780,
-    end: 830,
-    tone: "green"
-  },
-  {
-    course: "INFO 370",
-    section: "QC",
-    time: "1:00 - 1:50",
-    room: "DOW 233",
-    day: 4,
-    start: 780,
-    end: 830,
-    tone: "blue"
-  },
-  {
-    course: "CSE 414",
-    section: "QD",
-    time: "2:00 - 2:50",
-    room: "EECS 201",
-    day: 3,
-    start: 840,
-    end: 890,
-    tone: "purple"
-  },
-  {
-    course: "CSE 332",
-    section: "QB",
-    time: "3:00 - 3:50",
-    room: "ENG 205",
-    day: 2,
-    start: 900,
-    end: 950,
-    tone: "orange"
-  }
-];
-
-const rankedSchedules = [
-  {
-    title: "Option 1",
-    score: 94,
-    badge: "Recommended",
-    penalty: false,
-    reasons: ["No conflicts", "Short gaps", "Starts after 9:30"]
-  },
-  {
-    title: "Option 2",
-    score: 91,
-    penalty: false,
-    reasons: ["No conflicts", "Short gaps", "Starts after 9:30"]
-  },
-  {
-    title: "Option 3",
-    score: 86,
-    penalty: true,
-    reasons: ["No conflicts", "One longer gap", "Starts after 9:30"]
-  }
-];
-
-const formatHour = (hour: number) => {
-  if (hour < 12) return `${hour} AM`;
-  if (hour === 12) return "12 PM";
-  return `${hour - 12} PM`;
+const sampleJson = JSON.stringify(sampleCourses, null, 2);
+const dayLabels: Record<DayCode, string> = {
+  M: "Monday",
+  T: "Tuesday",
+  W: "Wednesday",
+  Th: "Thursday",
+  F: "Friday"
 };
+const days = Object.keys(dayLabels) as DayCode[];
+const palette = ["violet", "green", "blue", "orange", "rose"];
 
-const getEventStyle = (event: CalendarEvent) =>
-  ({
-    "--event-day": event.day + 1,
-    "--event-start": `${((event.start - 480) / 600) * 100}%`,
-    "--event-height": `${((event.end - event.start) / 600) * 100}%`
-  }) as CSSProperties;
+function validateCourses(value: unknown): Course[] {
+  const candidate = Array.isArray(value)
+    ? value
+    : typeof value === "object" && value !== null && "courses" in value
+      ? (value as { courses: unknown }).courses
+      : null;
+  if (!Array.isArray(candidate) || candidate.length === 0) {
+    throw new Error("Enter a non-empty course array or an object with a courses array.");
+  }
+  candidate.forEach((course, courseIndex) => {
+    if (typeof course !== "object" || course === null) {
+      throw new Error(`Course ${courseIndex + 1} must be an object.`);
+    }
+    const item = course as Partial<Course>;
+    if (typeof item.code !== "string" || !item.code.trim()) {
+      throw new Error(`Course ${courseIndex + 1} needs a code.`);
+    }
+    if (!Array.isArray(item.groups) || item.groups.length === 0) {
+      throw new Error(`${item.code} needs at least one section group.`);
+    }
+    item.groups.forEach((group, groupIndex) => {
+      if (!group.type || !Array.isArray(group.sections)) {
+        throw new Error(`${item.code} group ${groupIndex + 1} needs type and sections.`);
+      }
+    });
+  });
+  return candidate as Course[];
+}
+
+async function apiRequest<T>(path: string, body: object): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const payload = (await response.json()) as { error?: { message?: string } } & T;
+  if (!response.ok) {
+    throw new Error(payload.error?.message || `Request failed with status ${response.status}.`);
+  }
+  return payload;
+}
 
 function TopBar() {
   const [backendState, setBackendState] = useState<BackendState>("checking");
 
   useEffect(() => {
-    if (!apiBaseUrl) {
-      setBackendState("unavailable");
-      return;
-    }
-
     const controller = new AbortController();
-    const healthUrl = `${apiBaseUrl.replace(/\/$/, "")}/health`;
-
-    fetch(healthUrl, { signal: controller.signal })
+    fetch(`${apiBaseUrl}/health`, { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Backend health check failed");
-
+        if (!response.ok) throw new Error("Health check failed");
         const body = (await response.json()) as { status?: string };
         if (body.status !== "ok") throw new Error("Unexpected health response");
-
         setBackendState("online");
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setBackendState("unavailable");
       });
-
     return () => controller.abort();
   }, []);
 
-  const statusLabel = {
+  const label = {
     checking: "Checking backend",
     online: "Backend online",
     unavailable: "Backend unavailable"
@@ -280,376 +245,425 @@ function TopBar() {
   return (
     <header className="top-bar">
       <div className="brand">
-        <button className="icon-button" type="button" aria-label="Open menu">
-          <Menu size={25} />
-        </button>
-        <div className="brand-mark" aria-hidden="true">
-          <CalendarDays size={24} />
-        </div>
+        <CalendarDays size={23} aria-hidden="true" />
         <h1>Calendar Agent</h1>
       </div>
       <div className={`backend-status ${backendState}`} role="status" aria-live="polite">
         <span aria-hidden="true" />
-        {statusLabel}
+        {label}
       </div>
     </header>
   );
 }
 
-function PageTabs({
-  activeView,
-  onChange
-}: {
-  activeView: ViewMode;
-  onChange: (view: ViewMode) => void;
-}) {
+function Workflow({ stage }: { stage: Stage }) {
+  const current = stage === "input" ? 1 : stage === "review" ? 2 : 3;
   return (
-    <nav className="page-tabs" aria-label="Planner sections">
-      <button
-        className={activeView === "edit" ? "active" : ""}
-        type="button"
-        onClick={() => onChange("edit")}
-      >
-        Courses &amp; Preferences
-      </button>
-      <button
-        className={activeView === "options" ? "active" : ""}
-        type="button"
-        onClick={() => onChange("options")}
-      >
-        Schedule Options
-      </button>
-    </nav>
+    <ol className="workflow" aria-label="Schedule planning progress">
+      {["Course data", "Confirm preferences", "Schedule options"].map((label, index) => (
+        <li className={current >= index + 1 ? "active" : ""} key={label}>
+          <span>{current > index + 1 ? <Check size={14} /> : index + 1}</span>
+          {label}
+          {index < 2 && <ChevronRight size={15} aria-hidden="true" />}
+        </li>
+      ))}
+    </ol>
   );
 }
 
-function CourseEditor() {
-  const [activeCourse, setActiveCourse] = useState("CSE 414");
-
+function CourseSummary({ courses }: { courses: Course[] }) {
   return (
-    <section className="panel course-editor-card">
-      <div className="course-editor-header">
-        <h2>Courses</h2>
-        <button className="outline-button" type="button">
-          <Plus size={18} />
-          Add course
-        </button>
+    <section className="course-summary" aria-label="Parsed course structure">
+      <div className="summary-heading">
+        <CheckCircle2 size={18} />
+        <strong>{courses.length} {courses.length === 1 ? "course" : "courses"} parsed</strong>
       </div>
-
-      <div className="course-tabs" role="tablist" aria-label="Courses">
-        {courseTabs.map((course) => (
-          <button
-            className={activeCourse === course ? "active" : ""}
-            key={course}
-            type="button"
-            onClick={() => setActiveCourse(course)}
-          >
-            {course}
-          </button>
-        ))}
-      </div>
-
-      <div className="course-form-row">
-        <div className="course-name-field">
-          <label className="field-label" htmlFor="course-name">
-            Course name
-          </label>
-          <input id="course-name" value={activeCourse} readOnly />
-        </div>
-        <button className="save-button" type="button">
-          Save course
-        </button>
-      </div>
-
-      <h3 className="group-heading">{activeCourse} · Lecture &amp; quiz groups</h3>
-
-      <div className="lecture-list spacious">
-        {lectureGroups.map((group) => (
-          <article className="lecture-group" key={group.name}>
-            <div className="lecture-row">
-              <ChevronDown size={17} />
-              <span className="section-dot open" />
-              <strong>{group.name}</strong>
-              <span className="meeting-time">{group.time}</span>
-              <span className="pill pill-open">{group.status}</span>
+      <div className="summary-grid">
+        {courses.map((course) => (
+          <article className="course-summary-row" key={course.code}>
+            <div>
+              <strong>{course.code}</strong>
+              <span>{course.title || "Untitled course"}</span>
             </div>
-
-            <div className="quiz-list">
-              {group.quizzes.map((quiz) => (
-                <div className="quiz-row" key={quiz.id}>
-                  <span className="quiz-node" />
-                  <strong>{quiz.id}</strong>
-                  <span className="quiz-type">Quiz</span>
-                  <span className="meeting-time">{quiz.time}</span>
-                  <span
-                    className={`pill ${
-                      quiz.status === "Open" ? "pill-open" : "pill-closed"
-                    }`}
-                  >
-                    {quiz.status}
-                  </span>
-                </div>
+            <div className="group-tags">
+              {course.groups.map((group, index) => (
+                <span className={group.sections.length === 0 ? "empty" : ""} key={`${group.type}-${index}`}>
+                  {group.type} · choose {group.choose ?? 1} · {group.sections.length}{" "}
+                  {group.sections.length === 1 ? "section" : "sections"}
+                </span>
               ))}
             </div>
           </article>
         ))}
       </div>
-
-      <button className="secondary-action" type="button">
-        <CirclePlus size={18} />
-        Add lecture group
-      </button>
+      {courses.some((course) => course.groups.some((group) => group.sections.length === 0)) && (
+        <p className="empty-group-note">
+          Declared empty groups remain required and will produce no legal schedules.
+        </p>
+      )}
     </section>
   );
 }
 
-function PreferenceChat() {
+type InputViewProps = {
+  courseJson: string;
+  courses: Course[];
+  preferenceText: string;
+  parseError: string;
+  requestError: string;
+  loading: boolean;
+  onCourseJsonChange: (value: string) => void;
+  onParseCourses: () => void;
+  onLoadSample: () => void;
+  onPreferenceChange: (value: string) => void;
+  onInterpret: () => void;
+};
+
+function InputView(props: InputViewProps) {
   return (
-    <section className="panel preference-panel">
-      <h2>Preference Chat</h2>
+    <main className="input-layout">
+      <section className="panel course-input-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Step 1</span>
+            <h2>Course sections</h2>
+          </div>
+          <button className="secondary-button" type="button" onClick={props.onLoadSample}>
+            <RotateCcw size={16} /> Load sample
+          </button>
+        </div>
 
-      <div className="chat-thread">
-        <div className="chat-row user">
-          <span className="avatar">
-            <User size={23} />
-          </span>
-          <p>No classes before 9:30, keep Fridays light, and prefer short gaps between classes.</p>
-        </div>
-        <div className="chat-row assistant">
-          <span className="avatar bot-avatar">
-            <Bot size={22} />
-          </span>
-          <p>Got it. I’ll prioritize later starts, fewer Friday classes, and compact schedules.</p>
-        </div>
-        <div className="chat-row user">
-          <span className="avatar">
-            <User size={23} />
-          </span>
-          <p>CSE 332 section A is fixed.</p>
-        </div>
-        <div className="chat-row assistant">
-          <span className="avatar bot-avatar">
-            <Bot size={22} />
-          </span>
-          <p>I’ll keep CSE 332 A in every schedule.</p>
-        </div>
-      </div>
-
-      <div className="chat-input">
-        <input
-          aria-label="Describe schedule preferences"
-          placeholder="Describe your schedule preferences..."
+        <label className="field-label" htmlFor="course-json">
+          Course JSON
+        </label>
+        <textarea
+          id="course-json"
+          className="json-editor"
+          value={props.courseJson}
+          onChange={(event) => props.onCourseJsonChange(event.target.value)}
+          spellCheck={false}
         />
-        <button type="button" aria-label="Send preference">
-          <SendHorizontal size={24} />
+        <div className="format-note">
+          <FileJson size={17} />
+          <p>
+            Each course defines its own groups. Lecture-only courses are valid; quiz or lab groups are
+            processed only when present. An existing group with zero sections produces no legal schedule.
+          </p>
+        </div>
+        {props.parseError && (
+          <div className="error-message" role="alert">
+            <AlertCircle size={17} /> {props.parseError}
+          </div>
+        )}
+        <button className="parse-button" type="button" onClick={props.onParseCourses}>
+          <ClipboardPaste size={17} /> Parse course data
         </button>
-      </div>
-    </section>
-  );
-}
+        {props.courses.length > 0 && <CourseSummary courses={props.courses} />}
+      </section>
 
-function EditView({ onGenerate }: { onGenerate: () => void }) {
-  return (
-    <main className="edit-layout">
-      <CourseEditor />
-      <aside className="preference-column">
-        <PreferenceChat />
-        <button className="generate-button" type="button" onClick={onGenerate}>
-          Generate schedules
-          <ArrowRight size={30} />
+      <aside className="panel preference-input-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Step 2</span>
+            <h2>Schedule preferences</h2>
+          </div>
+          <Bot size={22} aria-hidden="true" />
+        </div>
+        <label className="field-label" htmlFor="preference-text">
+          Describe your ideal schedule
+        </label>
+        <textarea
+          id="preference-text"
+          className="preference-editor"
+          value={props.preferenceText}
+          onChange={(event) => props.onPreferenceChange(event.target.value)}
+          placeholder="Example: No classes before 10:00, prefer Friday off, and require CSE 373 A."
+        />
+        <div className="preference-examples">
+          <span>Later starts</span>
+          <span>Compact days</span>
+          <span>Fixed sections</span>
+          <span>Days off</span>
+        </div>
+        {props.requestError && (
+          <div className="error-message" role="alert">
+            <AlertCircle size={17} /> {props.requestError}
+          </div>
+        )}
+        <div className="preference-spacer" />
+        <button
+          className="primary-button"
+          type="button"
+          disabled={!props.courses.length || !props.preferenceText.trim() || props.loading}
+          onClick={props.onInterpret}
+        >
+          {props.loading ? <LoaderCircle className="spin" size={19} /> : <Sparkles size={19} />}
+          {props.loading ? "Interpreting preferences" : "Interpret preferences"}
+          {!props.loading && <ArrowRight size={19} />}
         </button>
       </aside>
     </main>
   );
 }
 
-function CalendarLegend() {
+function PreferenceList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return (
-    <div className="legend" aria-label="Calendar legend">
-      <span>
-        <i className="legend-open" /> Open
-      </span>
-      <span>
-        <i className="legend-fixed" /> Fixed
-      </span>
-      <span>
-        <i className="legend-conflict" /> Conflict
-      </span>
-      <span>
-        <i className="legend-penalty" /> Preference Penalty
-      </span>
+    <div className="preference-list">
+      <h3>{title}</h3>
+      {items.length ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item}>
+              <CheckCircle2 size={16} /> {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>{empty}</p>
+      )}
     </div>
   );
 }
 
-function WeeklyCalendar() {
-  return (
-    <div className="calendar-grid" aria-label="Weekly schedule">
-      <div className="calendar-days">
-        <span />
-        {days.map((day) => (
-          <strong key={day}>{day}</strong>
-        ))}
-      </div>
-
-      <div className="calendar-body">
-        <div className="time-axis">
-          {hours.map((hour) => (
-            <span key={hour}>{formatHour(hour)}</span>
-          ))}
-        </div>
-        <div className="day-columns">
-          {days.map((day) => (
-            <div className="day-column" key={day} />
-          ))}
-          <div className="hour-lines">
-            {hours.map((hour) => (
-              <span key={hour} />
-            ))}
-          </div>
-          {calendarEvents.map((event) => (
-            <article
-              className={`calendar-event event-${event.tone}`}
-              key={`${event.course}-${event.section}-${event.day}`}
-              style={getEventStyle(event)}
-            >
-              <strong>
-                {event.course} {event.section}
-              </strong>
-              <span>{event.time}</span>
-              <span>{event.room}</span>
-            </article>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ScheduleOptionCard({
-  schedule,
-  selected,
-  onSelect
+function ReviewView({
+  preferences,
+  loading,
+  error,
+  onBack,
+  onGenerate
 }: {
-  schedule: (typeof rankedSchedules)[number];
-  selected: boolean;
-  onSelect: () => void;
+  preferences: ParsedPreferences;
+  loading: boolean;
+  error: string;
+  onBack: () => void;
+  onGenerate: () => void;
 }) {
-  return (
-    <button
-      className={`option-card ${selected ? "selected" : ""}`}
-      type="button"
-      onClick={onSelect}
-    >
-      <div className="option-title-row">
-        <h3>{schedule.title}</h3>
-        {schedule.badge && (
-          <span className="recommendation">
-            <Star size={15} fill="currentColor" />
-            {schedule.badge}
-          </span>
-        )}
-        {selected && <CheckCircle2 className="selected-check" size={27} fill="currentColor" />}
-      </div>
+  const hardItems = [
+    ...preferences.fixedSections.map((item) => `Required section: ${item}`),
+    ...preferences.requiredDaysOff.map((day) => `${dayLabels[day]} must remain free`),
+    ...(preferences.earliestStartIsHard && preferences.earliestStart
+      ? [`No classes before ${preferences.earliestStart}`]
+      : []),
+    ...(preferences.requireOpenSections ? ["Open sections only"] : []),
+    ...preferences.hardConstraints
+  ];
+  const softItems = [
+    ...preferences.preferredDaysOff.map((day) => `Prefer ${dayLabels[day]} off`),
+    ...(preferences.preferredTimeOfDay !== "none"
+      ? [`Prefer ${preferences.preferredTimeOfDay} classes`]
+      : []),
+    ...(!preferences.earliestStartIsHard && preferences.earliestStart
+      ? [`Prefer classes at or after ${preferences.earliestStart}`]
+      : []),
+    ...preferences.softPreferences
+  ];
 
-      <div className="option-body-row">
-        <div>
-          <div className="tag-row">
-            <span className="pill pill-open">Open</span>
-            <span className="pill pill-fixed">Fixed</span>
-            <span className={`pill ${schedule.penalty ? "pill-warning" : "pill-open"}`}>
-              {schedule.penalty ? "More gaps" : "Low gaps"}
-            </span>
+  return (
+    <main className="review-layout">
+      <button className="back-button" type="button" onClick={onBack}>
+        <ArrowLeft size={18} /> Edit input
+      </button>
+      <section className="panel review-card">
+        <div className="review-title">
+          <span className="review-icon"><Bot size={24} /></span>
+          <div>
+            <span className="eyebrow">AI interpretation</span>
+            <h2>Confirm your schedule requirements</h2>
           </div>
-          <ul className="reason-list">
-            {schedule.reasons.map((reason) => (
-              <li key={reason}>
-                <CheckCircle2 size={16} />
-                {reason}
-              </li>
-            ))}
-          </ul>
         </div>
-        <div className="score">
-          <span>Score</span>
-          <strong>{schedule.score}</strong>
+        <div className="review-grid">
+          <PreferenceList title="Hard constraints" items={hardItems} empty="No hard constraints" />
+          <PreferenceList title="Soft preferences" items={softItems} empty="No soft preferences" />
         </div>
-      </div>
-    </button>
+        {preferences.needsClarification && (
+          <div className="clarification-box" role="alert">
+            <strong>Clarification needed</strong>
+            {preferences.clarificationQuestions.map((question) => <p key={question}>{question}</p>)}
+          </div>
+        )}
+        {error && <div className="error-message" role="alert"><AlertCircle size={17} /> {error}</div>}
+        <div className="review-actions">
+          <button className="secondary-button" type="button" onClick={onBack}>Revise preferences</button>
+          <button
+            className="primary-button compact"
+            type="button"
+            disabled={preferences.needsClarification || loading}
+            onClick={onGenerate}
+          >
+            {loading ? <LoaderCircle className="spin" size={19} /> : <Sparkles size={19} />}
+            {loading ? "Generating schedules" : "Confirm and generate"}
+          </button>
+        </div>
+      </section>
+    </main>
   );
 }
 
-function OptionsView({ onBack }: { onBack: () => void }) {
-  const [selectedOption, setSelectedOption] = useState(0);
-  const selectedSchedule = rankedSchedules[selectedOption];
+function toMinutes(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function Calendar({ schedule }: { schedule: RankedSchedule }) {
+  const startMinute = 8 * 60;
+  const endMinute = 18 * 60;
+  const hours = Array.from({ length: 11 }, (_, index) => index + 8);
+  const courseColors = new Map<string, string>();
+  schedule.sections.forEach((section) => {
+    if (!courseColors.has(section.courseCode)) {
+      courseColors.set(section.courseCode, palette[courseColors.size % palette.length]);
+    }
+  });
+  const events = schedule.sections.flatMap((section) =>
+    section.meetings.flatMap((meeting) =>
+      meeting.days.map((day) => ({ section, meeting, day }))
+    )
+  );
 
   return (
-    <main className="options-layout">
-      <aside className="options-sidebar">
-        <button className="back-button" type="button" onClick={onBack}>
-          <ArrowLeft size={19} />
-          Back to edit courses &amp; preferences
-        </button>
-
-        <div className="options-heading">
-          <h2>Schedule Options</h2>
-          <p>10 conflict-free schedules</p>
+    <div className="calendar" aria-label="Weekly schedule">
+      <div className="calendar-header"><span />{days.map((day) => <strong key={day}>{dayLabels[day]}</strong>)}</div>
+      <div className="calendar-content">
+        <div className="time-axis">{hours.map((hour) => <span key={hour}>{hour <= 12 ? hour : hour - 12} {hour < 12 ? "AM" : "PM"}</span>)}</div>
+        <div className="calendar-days">
+          {days.map((day) => <div className="day-column" key={day} />)}
+          <div className="time-lines">{hours.map((hour) => <span key={hour} />)}</div>
+          {events.map(({ section, meeting, day }, index) => {
+            const style = {
+              "--day": days.indexOf(day),
+              "--top": `${((toMinutes(meeting.startTime) - startMinute) / (endMinute - startMinute)) * 100}%`,
+              "--height": `${((toMinutes(meeting.endTime) - toMinutes(meeting.startTime)) / (endMinute - startMinute)) * 100}%`
+            } as CSSProperties;
+            return (
+              <article className={`calendar-event ${courseColors.get(section.courseCode)}`} style={style} key={`${section.courseCode}-${section.sectionId}-${day}-${index}`}>
+                <strong>{section.courseCode} {section.sectionId}</strong>
+                <span>{meeting.startTime} - {meeting.endTime}</span>
+                {meeting.location && <span>{meeting.location}</span>}
+              </article>
+            );
+          })}
         </div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="option-stack">
-          {rankedSchedules.map((schedule, index) => (
-            <ScheduleOptionCard
-              key={schedule.title}
-              schedule={schedule}
-              selected={selectedOption === index}
-              onSelect={() => setSelectedOption(index)}
-            />
-          ))}
-        </div>
-
-        <div className="pagination">
-          <button type="button" aria-label="Previous options">
-            <ChevronLeft size={20} />
+function ResultsView({ response, onBack }: { response: GenerateResponse; onBack: () => void }) {
+  const [selectedRank, setSelectedRank] = useState(response.schedules[0]?.rank ?? 0);
+  const selected = response.schedules.find((item) => item.rank === selectedRank);
+  return (
+    <main className="results-layout">
+      <aside className="results-sidebar">
+        <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={18} /> Edit courses &amp; preferences</button>
+        <div className="results-heading"><h2>Schedule options</h2><p>{response.count} ranked schedules</p></div>
+        {response.schedules.map((schedule) => (
+          <button className={`schedule-card ${selectedRank === schedule.rank ? "selected" : ""}`} type="button" key={schedule.rank} onClick={() => setSelectedRank(schedule.rank)}>
+            <div className="schedule-card-heading"><h3>Option {schedule.rank}</h3><strong>{schedule.score}</strong></div>
+            <span className="score-label">Score</span>
+            <p>{schedule.reasons[0] || "Conflict-free schedule"}</p>
           </button>
-          <span>1–3 of 10</span>
-          <button type="button" aria-label="Next options">
-            <ChevronRight size={20} />
-          </button>
-        </div>
+        ))}
+        {!response.schedules.length && <div className="empty-state"><AlertCircle size={22} /><h3>No legal schedules</h3><p>{response.warnings[0]}</p></div>}
       </aside>
-
       <section className="schedule-detail">
-        <div className="schedule-detail-header">
-          <h2>
-            {selectedSchedule.title} · <span>Weekly Schedule</span>
-          </h2>
-          <p>
-            Score <strong>{selectedSchedule.score}</strong>
-          </p>
-          <p className="recommended-inline">
-            <span /> Recommended
-          </p>
-        </div>
-
-        <WeeklyCalendar />
-        <CalendarLegend />
+        {selected ? (
+          <>
+            <div className="detail-heading"><div><span className="eyebrow">Option {selected.rank}</span><h2>Weekly schedule</h2></div><div className="large-score"><span>Score</span><strong>{selected.score}</strong></div></div>
+            <Calendar schedule={selected} />
+            <div className="insight-grid">
+              <section className="panel insight-panel"><h3>Why this works</h3><ul>{selected.reasons.map((reason) => <li key={reason}><CheckCircle2 size={16} />{reason}</li>)}</ul></section>
+              <section className="panel insight-panel tradeoffs"><h3>Trade-offs</h3>{selected.tradeoffs.length ? <ul>{selected.tradeoffs.map((tradeoff) => <li key={tradeoff}><AlertCircle size={16} />{tradeoff}</li>)}</ul> : <p>No preference trade-offs.</p>}</section>
+              <section className="panel score-panel"><h3>Score breakdown</h3>{Object.entries(selected.scoreBreakdown).map(([rule, item]) => <div className="score-row" key={rule}><div><strong>{rule.replace(/([A-Z])/g, " $1")}</strong><span>{item.details}</span></div><b>{item.score}/{item.maximum}</b></div>)}</section>
+            </div>
+          </>
+        ) : <div className="empty-detail"><CalendarDays size={34} /><p>Revise hard constraints to generate schedule options.</p></div>}
       </section>
     </main>
   );
 }
 
 function App() {
-  const [activeView, setActiveView] = useState<ViewMode>("edit");
+  const [stage, setStage] = useState<Stage>("input");
+  const [courseJson, setCourseJson] = useState(sampleJson);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [preferenceText, setPreferenceText] = useState(
+    "No classes before 10:00 if possible, prefer Friday off, and use open sections only."
+  );
+  const [preferences, setPreferences] = useState<ParsedPreferences | null>(null);
+  const [response, setResponse] = useState<GenerateResponse | null>(null);
+  const [parseError, setParseError] = useState("");
+  const [requestError, setRequestError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const canOpenResults = useMemo(() => response !== null, [response]);
+
+  const parseCourses = () => {
+    try {
+      const parsed = validateCourses(JSON.parse(courseJson));
+      setCourses(parsed);
+      setParseError("");
+      setResponse(null);
+    } catch (error) {
+      setCourses([]);
+      setParseError(error instanceof SyntaxError ? `JSON parse error: ${error.message}` : error instanceof Error ? error.message : "Invalid course data.");
+    }
+  };
+
+  const loadSample = () => {
+    setCourseJson(sampleJson);
+    setCourses(sampleCourses);
+    setParseError("");
+    setResponse(null);
+  };
+
+  const interpretPreferences = async () => {
+    setLoading(true);
+    setRequestError("");
+    try {
+      const parsed = await apiRequest<ParsedPreferences>("/parse-preferences", {
+        courses,
+        preferenceText
+      });
+      setPreferences(parsed);
+      setStage("review");
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "Could not interpret preferences.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateSchedules = async () => {
+    if (!preferences) return;
+    setLoading(true);
+    setRequestError("");
+    try {
+      const generated = await apiRequest<GenerateResponse>("/api/schedules/generate", {
+        courses,
+        preferences,
+        topN: 5,
+        enhanceReasons: true
+      });
+      setResponse(generated);
+      setStage("results");
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "Could not generate schedules.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="app">
       <TopBar />
-      <PageTabs activeView={activeView} onChange={setActiveView} />
-      {activeView === "edit" ? (
-        <EditView onGenerate={() => setActiveView("options")} />
-      ) : (
-        <OptionsView onBack={() => setActiveView("edit")} />
-      )}
+      <div className="subnav">
+        <button className={stage !== "results" ? "active" : ""} type="button" onClick={() => setStage("input")}>Courses &amp; Preferences</button>
+        <button className={stage === "results" ? "active" : ""} type="button" disabled={!canOpenResults} onClick={() => setStage("results")}>Schedule Options</button>
+        <Workflow stage={stage} />
+      </div>
+      {stage === "input" && <InputView courseJson={courseJson} courses={courses} preferenceText={preferenceText} parseError={parseError} requestError={requestError} loading={loading} onCourseJsonChange={setCourseJson} onParseCourses={parseCourses} onLoadSample={loadSample} onPreferenceChange={setPreferenceText} onInterpret={interpretPreferences} />}
+      {stage === "review" && preferences && <ReviewView preferences={preferences} loading={loading} error={requestError} onBack={() => setStage("input")} onGenerate={generateSchedules} />}
+      {stage === "results" && response && <ResultsView response={response} onBack={() => setStage("input")} />}
     </div>
   );
 }

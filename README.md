@@ -108,6 +108,16 @@ Example workflow:
 5. Generate schedule options.
 6. Compare the ranked results in the weekly calendar view.
 
+The implemented frontend presents this as a three-stage guided workflow:
+**Course data**, **Confirm preferences**, and **Schedule options**. It accepts
+pasted course JSON, summarizes the real section-group structure, calls the AI
+preference parser, lets the user confirm the validated interpretation, and then
+calls the ranked schedule API. Candidate schedules can be switched directly in
+the results view, with a weekly calendar, score, reasons, trade-offs, and score
+breakdown for each option. See
+[`docs/frontend-workflow.md`](docs/frontend-workflow.md) for the complete UI flow
+and course-input behavior.
+
 ## Example Input
 
 ```json
