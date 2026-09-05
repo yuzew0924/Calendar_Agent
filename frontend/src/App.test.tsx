@@ -3,6 +3,35 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
+function defaultParsedPreferences() {
+  return {
+    earliestStart: null,
+    earliestStartIsHard: false,
+    preferredDaysOff: [],
+    requiredDaysOff: [],
+    preferredTimeOfDay: "none",
+    gapPreference: "none",
+    fixedSections: [],
+    requireOpenSections: true,
+    hardConstraints: [],
+    softPreferences: [],
+    conflicts: [],
+    needsClarification: false,
+    clarificationQuestions: []
+  };
+}
+
+function mockApiResponse(payload: object) {
+  return vi.fn().mockImplementation((_input: string, init?: RequestInit) =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify(init?.method ? payload : { status: "ok" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+  );
+}
+
 describe("App", () => {
   afterEach(() => {
     cleanup();
@@ -174,6 +203,89 @@ describe("App", () => {
     expect(screen.getByText("1 ranked schedules")).toBeInTheDocument();
     expect(screen.getAllByText("CSE 373 B")).toHaveLength(2);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  });
+
+  it("shows hard conflicts, blocks generation, and preserves text for revision", async () => {
+    const conflictPreferences = {
+      ...defaultParsedPreferences(),
+      conflicts: ["CSE 373 A conflicts with the required Friday off"],
+      needsClarification: true,
+      clarificationQuestions: ["Should the fixed section override Friday off?"]
+    };
+    vi.stubGlobal("fetch", mockApiResponse(conflictPreferences));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+    fireEvent.change(screen.getByLabelText("Describe your ideal schedule"), {
+      target: { value: "Keep Friday free and require CSE 373 A" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Interpret preferences/ }));
+
+    expect(await screen.findByText("Hard-constraint conflicts")).toBeInTheDocument();
+    expect(screen.getByText(/CSE 373 A conflicts/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirm and generate/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Revise preferences" }));
+    expect(screen.getByLabelText("Describe your ideal schedule")).toHaveValue(
+      "Keep Friday free and require CSE 373 A"
+    );
+  });
+
+  it("renders FastAPI validation details and AI parsing failures", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string, init?: RequestInit) => {
+      if (!init?.method) return Promise.resolve(new Response('{"status":"ok"}', { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ detail: [{ loc: ["body", "courses", 0, "code"], msg: "Field required" }] }), { status: 422 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+    fireEvent.click(screen.getByRole("button", { name: /Interpret preferences/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("courses.0.code: Field required");
+
+    cleanup();
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((input: string, init?: RequestInit) => {
+      if (!init?.method) return Promise.resolve(new Response('{"status":"ok"}', { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ error: { message: "AI preference parsing timed out" } }), { status: 504 }));
+    }));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+    fireEvent.click(screen.getByRole("button", { name: /Interpret preferences/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("AI preference parsing timed out");
+  });
+
+  it("shows a specific backend-unavailable message", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+    fireEvent.click(screen.getByRole("button", { name: /Interpret preferences/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Backend unavailable at");
+    expect(screen.getByRole("status")).toHaveTextContent("Backend unavailable");
+  });
+
+  it("shows every no-result diagnostic and a recovery action", async () => {
+    const fetchMock = vi.fn().mockImplementation((_input: string, init?: RequestInit) => {
+      if (!init?.method) return Promise.resolve(new Response('{"status":"ok"}', { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({
+        interpretedPreferences: defaultParsedPreferences(),
+        schedules: [],
+        count: 0,
+        warnings: [
+          "CSE 373 quiz group has no open sections while open-only is enabled.",
+          "All remaining combinations have meeting conflicts."
+        ]
+      }), { status: 200 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+    fireEvent.change(screen.getByLabelText("Describe your ideal schedule"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /Interpret preferences/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirm and generate/ }));
+
+    expect(await screen.findByRole("heading", { name: "No legal schedules" })).toBeInTheDocument();
+    expect(screen.getByText(/quiz group has no open sections/)).toBeInTheDocument();
+    expect(screen.getByText(/All remaining combinations/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Edit courses/ })).toBeInTheDocument();
   });
 
   it("accepts a lecture-only course and preserves a declared empty group", async () => {

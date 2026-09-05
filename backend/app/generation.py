@@ -11,7 +11,7 @@ from .models import (
     ScoreBreakdownItem,
 )
 from .scheduler.ranking import ScheduleRankingResult, rank_schedules
-from .scheduler.solver import generate_schedule_candidates
+from .scheduler.solver import diagnose_no_schedules, generate_schedule_candidates
 
 
 def _schedule_sections(result: ScheduleRankingResult) -> list[ScheduleSection]:
@@ -80,7 +80,7 @@ async def generate_ranked_schedules(
             )
         )
 
-    warnings = [] if schedules else ["No legal schedules satisfy all hard constraints"]
+    warnings = [] if schedules else list(diagnose_no_schedules(schedule_request))
     return GenerateSchedulesApiResponse(
         interpreted_preferences=parsed,
         schedules=schedules,

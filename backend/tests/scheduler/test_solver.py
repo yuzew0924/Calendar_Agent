@@ -7,6 +7,7 @@ from app.scheduler.scoring import score_schedule
 from app.scheduler.solver import (
     CourseCombination,
     ScheduleCandidate,
+    diagnose_no_schedules,
     generate_course_combinations,
     generate_group_combinations,
     generate_schedule_candidates,
@@ -209,6 +210,48 @@ def test_course_with_empty_group_produces_no_final_schedules() -> None:
     )
 
     assert generate_schedule_candidates(request) == ()
+    assert diagnose_no_schedules(request) == (
+        "CHEM 142 lab group has no sections.",
+    )
+
+
+def test_diagnostics_report_open_only_exhaustion() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 373",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [section_without_meetings("A", status="closed")],
+                        }
+                    ],
+                }
+            ],
+            "preferences": {"requireOpenSections": True},
+        }
+    )
+
+    assert diagnose_no_schedules(request) == (
+        "CSE 373 lecture group has no open sections while open-only is enabled.",
+    )
+
+
+def test_diagnostics_report_overlapping_fixed_sections() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {"code": "CSE 373", "groups": [{"type": "lecture", "sections": [section("A")]}]},
+                {"code": "CSE 414", "groups": [{"type": "lecture", "sections": [section("B")]}]},
+            ],
+            "preferences": {"fixedSections": {"CSE 373": ["A"], "CSE 414": ["B"]}},
+        }
+    )
+
+    assert diagnose_no_schedules(request) == (
+        "Fixed sections CSE 373 A and CSE 414 B have overlapping meeting times.",
+    )
 
 
 def test_course_combinations_filter_closed_and_keep_fixed_sections() -> None:

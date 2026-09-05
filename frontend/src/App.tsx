@@ -221,14 +221,29 @@ function validateCourses(value: unknown): Course[] {
 }
 
 async function apiRequest<T>(path: string, body: object): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  const payload = (await response.json()) as { error?: { message?: string } } & T;
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+  } catch {
+    throw new Error(
+      `Backend unavailable at ${apiBaseUrl}. Start the FastAPI service and try again.`
+    );
+  }
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: { message?: string };
+    detail?: string | Array<{ loc?: Array<string | number>; msg?: string }>;
+  } & T;
   if (!response.ok) {
-    throw new Error(payload.error?.message || `Request failed with status ${response.status}.`);
+    const validationDetails = Array.isArray(payload.detail)
+      ? payload.detail.map((item) => `${item.loc?.slice(1).join(".") || "request"}: ${item.msg || "invalid value"}`).join("; ")
+      : payload.detail;
+    throw new Error(
+      payload.error?.message || validationDetails || `Request failed with status ${response.status}.`
+    );
   }
   return payload;
 }
@@ -503,13 +518,20 @@ function ReviewView({
             {preferences.clarificationQuestions.map((question) => <p key={question}>{question}</p>)}
           </div>
         )}
+        {preferences.conflicts.length > 0 && (
+          <div className="conflict-box" role="alert">
+            <strong>Hard-constraint conflicts</strong>
+            <ul>{preferences.conflicts.map((conflict) => <li key={conflict}>{conflict}</li>)}</ul>
+            <p>Revise the preference text before generating a schedule.</p>
+          </div>
+        )}
         {error && <div className="error-message" role="alert"><AlertCircle size={17} /> {error}</div>}
         <div className="review-actions">
           <button className="secondary-button" type="button" onClick={onBack}>Revise preferences</button>
           <button
             className="primary-button compact"
             type="button"
-            disabled={preferences.needsClarification || loading}
+            disabled={preferences.needsClarification || preferences.conflicts.length > 0 || loading}
             onClick={onGenerate}
           >
             {loading ? <LoaderCircle className="spin" size={19} /> : <Sparkles size={19} />}
@@ -585,7 +607,7 @@ function ResultsView({ response, onBack }: { response: GenerateResponse; onBack:
             <p>{schedule.reasons[0] || "Conflict-free schedule"}</p>
           </button>
         ))}
-        {!response.schedules.length && <div className="empty-state"><AlertCircle size={22} /><h3>No legal schedules</h3><p>{response.warnings[0]}</p></div>}
+        {!response.schedules.length && <div className="empty-state"><AlertCircle size={22} /><h3>No legal schedules</h3><ul>{response.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
       </aside>
       <section className="schedule-detail">
         {selected ? (
@@ -598,7 +620,7 @@ function ResultsView({ response, onBack }: { response: GenerateResponse; onBack:
               <section className="panel score-panel"><h3>Score breakdown</h3>{Object.entries(selected.scoreBreakdown).map(([rule, item]) => <div className="score-row" key={rule}><div><strong>{rule.replace(/([A-Z])/g, " $1")}</strong><span>{item.details}</span></div><b>{item.score}/{item.maximum}</b></div>)}</section>
             </div>
           </>
-        ) : <div className="empty-detail"><CalendarDays size={34} /><p>Revise hard constraints to generate schedule options.</p></div>}
+        ) : <div className="empty-detail"><CalendarDays size={34} /><h3>No schedule can satisfy the current input</h3><p>Return to the input screen to revise fixed sections, availability rules, meeting times, or empty section groups.</p></div>}
       </section>
     </main>
   );

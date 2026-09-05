@@ -118,6 +118,11 @@ breakdown for each option. See
 [`docs/frontend-workflow.md`](docs/frontend-workflow.md) for the complete UI flow
 and course-input behavior.
 
+AI interpretation is always shown before generation. Users can return to edit
+the original preference text, and unresolved hard conflicts disable schedule
+generation. Validation, AI, connectivity, and no-result states provide specific
+recovery information instead of a generic failure message.
+
 For a no-setup demonstration, select **Load sample data**. The bundled courses
 populate the JSON editor, render a structural summary, and contain at least one
 conflict-free combination. Preference text accepts English or Chinese. Blank

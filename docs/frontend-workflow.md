@@ -18,6 +18,25 @@ options. Users do not need to call backend endpoints manually.
 9. Switch between candidates and compare their weekly calendars.
 10. Inspect each option's score, reasons, trade-offs, and score breakdown.
 
+## Confirmation and Revision
+
+The interpretation screen separates hard constraints from soft preferences and
+shows clarification questions and hard conflicts without reducing them to a
+generic warning. **Confirm and generate** is disabled while either condition is
+unresolved. **Revise preferences** returns to the input screen with the original
+`preferenceText` intact, so the user can edit it and run parsing again.
+
+## Application States
+
+The UI provides feedback for initial input, preference parsing, schedule
+generation, successful results, JSON errors, FastAPI validation errors, AI
+parsing failures, backend unavailability, and empty schedule results. An empty
+result renders every backend diagnostic and a route back to edit the input.
+
+No-result diagnostics distinguish an empty declared group, open-only section
+exhaustion, overlapping fixed sections, hard time/day filters, and conflicts
+among all remaining combinations.
+
 ## Course Input Rules
 
 The MVP accepts either a JSON array of courses or an object containing a

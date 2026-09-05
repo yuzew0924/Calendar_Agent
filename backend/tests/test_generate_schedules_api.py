@@ -99,7 +99,8 @@ def test_generate_endpoint_returns_stable_empty_result() -> None:
     assert response.json()["schedules"] == []
     assert response.json()["count"] == 0
     assert response.json()["warnings"] == [
-        "No legal schedules satisfy all hard constraints"
+        "Hard day-off or earliest-start constraints eliminate the remaining combinations.",
+        "All remaining combinations have meeting conflicts or incompatible course-component requirements.",
     ]
 
 

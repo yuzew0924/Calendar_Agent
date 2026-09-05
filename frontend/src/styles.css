@@ -88,6 +88,8 @@ h1, h2, h3, p { margin-top: 0; }
 .preference-list li svg, .insight-panel li svg { flex: 0 0 auto; margin-top: 1px; color: #14834a; }
 .preference-list p { margin: 0; color: #7b8798; font-size: 0.8rem; }
 .clarification-box { border: 1px solid #efbd65; border-radius: 6px; padding: 12px 14px; color: #7a4700; background: #fff9eb; }
+.conflict-box { margin-top: 12px; border: 1px solid #f19b9b; border-radius: 6px; padding: 12px 14px; color: #8f2525; background: #fff4f4; }
+.conflict-box ul, .empty-state ul { margin: 8px 0 0; padding-left: 18px; }
 .clarification-box p { margin: 5px 0 0; font-size: 0.8rem; }
 .review-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #e1e7ee; padding-top: 17px; }
 

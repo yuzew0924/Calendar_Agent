@@ -136,11 +136,16 @@ No legal candidates is a successful HTTP 200 response:
   "interpretedPreferences": {},
   "schedules": [],
   "count": 0,
-  "warnings": ["No legal schedules satisfy all hard constraints"]
+  "warnings": [
+    "CSE 373 quiz group has no open sections while open-only is enabled."
+  ]
 }
 ```
 
 The actual `interpretedPreferences` value includes all defaulted schema fields.
+Warnings identify empty declared groups, open-only section exhaustion,
+overlapping fixed sections, hard day/time filters, or conflicts among all
+remaining combinations. Multiple applicable diagnostics are returned together.
 Preference-parser failures remain API errors and stop before scheduler
 execution. Reason-rewriter failures do not fail generation and use fallback
 text.

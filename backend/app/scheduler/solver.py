@@ -208,3 +208,59 @@ def generate_schedule_candidates(request: ScheduleRequest) -> tuple[ScheduleCand
             schedules.append(candidate)
 
     return tuple(schedules)
+
+
+def diagnose_no_schedules(request: ScheduleRequest) -> tuple[str, ...]:
+    """Return concrete hard-constraint reasons for an empty solver result."""
+    warnings: list[str] = []
+    for course in request.courses:
+        for group in course.groups:
+            if not group.sections:
+                warnings.append(
+                    f"{course.code} {group.type.value} group has no sections."
+                )
+            elif request.preferences.require_open_sections and not any(
+                section.status is SectionStatus.OPEN for section in group.sections
+            ):
+                warnings.append(
+                    f"{course.code} {group.type.value} group has no open sections "
+                    "while open-only is enabled."
+                )
+
+    sections_by_course = {
+        course.code: {
+            section.id: section
+            for group in course.groups
+            for section in group.sections
+        }
+        for course in request.courses
+    }
+    fixed = [
+        (course_code, section_id, sections_by_course[course_code][section_id])
+        for course_code, section_ids in request.preferences.fixed_sections.items()
+        for section_id in section_ids
+    ]
+    for left, right in combinations(fixed, 2):
+        if sections_overlap(left[2], right[2]):
+            warnings.append(
+                f"Fixed sections {left[0]} {left[1]} and {right[0]} {right[1]} "
+                "have overlapping meeting times."
+            )
+
+    if not warnings:
+        if (
+            request.preferences.required_days_off
+            or (
+                request.preferences.earliest_start is not None
+                and not request.preferences.allow_earlier_if_only_option
+            )
+        ):
+            warnings.append(
+                "Hard day-off or earliest-start constraints eliminate the "
+                "remaining combinations."
+            )
+        warnings.append(
+            "All remaining combinations have meeting conflicts or incompatible "
+            "course-component requirements."
+        )
+    return tuple(dict.fromkeys(warnings))
