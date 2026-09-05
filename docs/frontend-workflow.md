@@ -5,7 +5,8 @@ options. Users do not need to call backend endpoints manually.
 
 ## Main Flow
 
-1. Paste course JSON or load the built-in sample.
+1. Paste course JSON or select **Load sample data**. Loading the sample fills the
+   editor and immediately displays its course summary.
 2. Parse the data and review the course count and declared section groups.
 3. Enter schedule preferences in natural language.
 4. Send the preferences to `POST /parse-preferences`.
@@ -32,3 +33,11 @@ successful parse.
   an API request is made.
 
 The backend Pydantic models remain the authority for complete schema validation.
+
+## Preference Input
+
+The preference editor accepts natural-language English and Chinese text. A
+nonblank value is sent to `POST /parse-preferences` with the parsed courses. If
+the field is blank, the frontend skips the AI call and presents explicit safe
+defaults for confirmation: open sections only, with no additional hard or soft
+preferences. This keeps the workflow usable without inventing user intent.

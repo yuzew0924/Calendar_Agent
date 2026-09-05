@@ -47,6 +47,41 @@ describe("App", () => {
     expect(screen.getByText("quiz · choose 1 · 2 sections")).toBeInTheDocument();
   });
 
+  it("loads sample data and immediately displays its course summary", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok" }), { status: 200 }))
+    );
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Course JSON"), { target: { value: "[]" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+
+    expect((screen.getByLabelText("Course JSON") as HTMLTextAreaElement).value).toContain("CSE 373");
+    expect(screen.getByText("2 courses parsed")).toBeInTheDocument();
+    expect(screen.getByText("CSE 373")).toBeInTheDocument();
+    expect(screen.getByText("INFO 370")).toBeInTheDocument();
+  });
+
+  it("uses safe defaults when preference text is blank", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok" }), { status: 200 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+    fireEvent.change(screen.getByLabelText("Describe your ideal schedule"), {
+      target: { value: "   " }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Interpret preferences/ }));
+
+    expect(await screen.findByRole("heading", { name: "Confirm your schedule requirements" })).toBeInTheDocument();
+    expect(screen.getByText("Open sections only")).toBeInTheDocument();
+    expect(screen.getByText("No soft preferences")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("shows a JSON parse error and clears an invalid summary", async () => {
     vi.stubGlobal(
       "fetch",

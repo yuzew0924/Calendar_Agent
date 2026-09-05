@@ -39,6 +39,7 @@ h1, h2, h3, p { margin-top: 0; }
 .panel-heading h2, .review-title h2, .detail-heading h2 { margin: 2px 0 0; font-size: 1.2rem; }
 .eyebrow { color: #66758a; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
 .field-label { display: block; margin-bottom: 7px; font-size: 0.8rem; font-weight: 800; }
+.field-help { margin: 7px 0 0; color: #68768a; font-size: 0.72rem; line-height: 1.45; }
 .json-editor, .preference-editor { width: 100%; resize: vertical; border: 1px solid #cbd6e3; border-radius: 6px; padding: 12px 14px; color: #142641; outline: none; background: #fbfcfe; line-height: 1.45; }
 .json-editor:focus, .preference-editor:focus { border-color: #168493; box-shadow: 0 0 0 3px rgb(22 132 147 / 10%); }
 .json-editor { min-height: 300px; max-height: 430px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.78rem; }

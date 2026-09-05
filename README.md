@@ -118,6 +118,12 @@ breakdown for each option. See
 [`docs/frontend-workflow.md`](docs/frontend-workflow.md) for the complete UI flow
 and course-input behavior.
 
+For a no-setup demonstration, select **Load sample data**. The bundled courses
+populate the JSON editor, render a structural summary, and contain at least one
+conflict-free combination. Preference text accepts English or Chinese. Blank
+preference text is handled as an explicit default of open sections only, with
+no additional ranking preferences.
+
 ## Example Input
 
 ```json

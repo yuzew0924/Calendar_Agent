@@ -165,6 +165,20 @@ const sampleCourses: Course[] = [
 ];
 
 const sampleJson = JSON.stringify(sampleCourses, null, 2);
+const defaultPreferences: ParsedPreferences = {
+  earliestStart: null,
+  earliestStartIsHard: false,
+  preferredDaysOff: [],
+  requiredDaysOff: [],
+  preferredTimeOfDay: "none",
+  fixedSections: [],
+  requireOpenSections: true,
+  hardConstraints: [],
+  softPreferences: [],
+  conflicts: [],
+  needsClarification: false,
+  clarificationQuestions: []
+};
 const dayLabels: Record<DayCode, string> = {
   M: "Monday",
   T: "Tuesday",
@@ -329,7 +343,7 @@ function InputView(props: InputViewProps) {
             <h2>Course sections</h2>
           </div>
           <button className="secondary-button" type="button" onClick={props.onLoadSample}>
-            <RotateCcw size={16} /> Load sample
+            <RotateCcw size={16} /> Load sample data
           </button>
         </div>
 
@@ -379,6 +393,9 @@ function InputView(props: InputViewProps) {
           onChange={(event) => props.onPreferenceChange(event.target.value)}
           placeholder="Example: No classes before 10:00, prefer Friday off, and require CSE 373 A."
         />
+        <p className="field-help">
+          English and Chinese are supported. Leave this blank to use open sections with no additional preferences.
+        </p>
         <div className="preference-examples">
           <span>Later starts</span>
           <span>Compact days</span>
@@ -394,7 +411,7 @@ function InputView(props: InputViewProps) {
         <button
           className="primary-button"
           type="button"
-          disabled={!props.courses.length || !props.preferenceText.trim() || props.loading}
+          disabled={!props.courses.length || props.loading}
           onClick={props.onInterpret}
         >
           {props.loading ? <LoaderCircle className="spin" size={19} /> : <Sparkles size={19} />}
@@ -617,6 +634,16 @@ function App() {
   };
 
   const interpretPreferences = async () => {
+    if (!courses.length) {
+      setRequestError("Parse or load course data before continuing.");
+      return;
+    }
+    if (!preferenceText.trim()) {
+      setPreferences(defaultPreferences);
+      setRequestError("");
+      setStage("review");
+      return;
+    }
     setLoading(true);
     setRequestError("");
     try {
