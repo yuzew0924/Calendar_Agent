@@ -5,6 +5,7 @@ from .ai.reason_writer import ReasonWriter
 from .models import (
     GenerateSchedulesApiRequest,
     GenerateSchedulesApiResponse,
+    AffectedMeeting,
     RankedSchedule,
     ScheduleRequest,
     ScheduleSection,
@@ -70,8 +71,22 @@ async def generate_ranked_schedules(
                     item.rule_name: ScoreBreakdownItem(
                         score=item.score,
                         maximum=item.maximum,
+                        score_delta=item.score_delta,
+                        matched_preference=item.matched_preference,
                         details=item.details,
+                        reason_candidate=item.reason_candidate,
+                        tradeoff_candidate=item.tradeoff_candidate,
                         affected_sections=list(item.affected_sections),
+                        affected_meetings=[
+                            AffectedMeeting(
+                                course_code=fact.course_code,
+                                section_id=fact.section_id,
+                                day=fact.day,
+                                start_time=fact.start,
+                                end_time=fact.end,
+                            )
+                            for fact in item.affected_meetings
+                        ],
                     )
                     for item in result.evaluation.breakdown
                 },

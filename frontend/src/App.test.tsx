@@ -137,7 +137,7 @@ describe("App", () => {
       preferredDaysOff: ["F"],
       requiredDaysOff: [],
       preferredTimeOfDay: "afternoon",
-      gapPreference: "none",
+      gapPreference: "compact",
       fixedSections: [],
       requireOpenSections: true,
       hardConstraints: [],
@@ -162,7 +162,7 @@ describe("App", () => {
             schedules: [
               {
                 rank: 1,
-                score: 94,
+                score: 87,
                 sections: [
                   {
                     courseCode: "CSE 373",
@@ -178,7 +178,17 @@ describe("App", () => {
                 scoreBreakdown: {
                   earliestStart: { score: 25, maximum: 25, details: "Starts later", affectedSections: [] },
                   preferredTimeOfDay: { score: 20, maximum: 20, details: "Afternoon", affectedSections: [] },
-                  gaps: { score: 30, maximum: 30, details: "No gaps", affectedSections: [] },
+                  gaps: {
+                    score: 23,
+                    maximum: 30,
+                    scoreDelta: -7,
+                    matchedPreference: "compact",
+                    details: "One 70-minute gap",
+                    reasonCandidate: null,
+                    tradeoffCandidate: "One gap is at least 30 minutes",
+                    affectedSections: ["CSE 373 B"],
+                    affectedMeetings: []
+                  },
                   preferredDaysOff: { score: 19, maximum: 25, details: "Friday free", affectedSections: [] }
                 },
                 reasons: ["Classes are concentrated in the afternoon"],
@@ -202,6 +212,7 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Weekly schedule" })).toBeInTheDocument();
     expect(screen.getByText("1 ranked schedules")).toBeInTheDocument();
     expect(screen.getAllByText("CSE 373 B")).toHaveLength(2);
+    expect(screen.getByText("Matched: compact · Delta: -7")).toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
   });
 

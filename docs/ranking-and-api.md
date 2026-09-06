@@ -22,6 +22,7 @@ wording. It cannot affect candidate generation, scores, or ranks.
     "preferredDaysOff": ["F"],
     "requiredDaysOff": [],
     "preferredTimeOfDay": "afternoon",
+    "gapPreference": "none",
     "fixedSections": ["CSE 373 A"],
     "requireOpenSections": true,
     "hardConstraints": ["Fixed section: CSE 373 A"],
@@ -55,8 +56,21 @@ wording. It cannot affect candidate generation, scores, or ranks.
         "earliestStart": {
           "score": 25,
           "maximum": 25,
+          "scoreDelta": 0,
+          "matchedPreference": "11:00",
           "details": "All class days start at or after 11:00",
-          "affectedSections": []
+          "reasonCandidate": "All class days start at or after 11:00",
+          "tradeoffCandidate": null,
+          "affectedSections": ["CSE 373 A"],
+          "affectedMeetings": [
+            {
+              "courseCode": "CSE 373",
+              "sectionId": "A",
+              "day": "M",
+              "startTime": "11:30",
+              "endTime": "12:20"
+            }
+          ]
         }
       },
       "reasons": ["Includes required section CSE 373 A"],
@@ -70,6 +84,21 @@ wording. It cannot affect candidate generation, scores, or ranks.
 
 The real `scoreBreakdown` always contains all four scoring categories below.
 The abbreviated example shows one category for readability.
+
+Every rule preserves the complete scoring trace:
+
+- `score` and `maximum` are the rule contribution and available points.
+- `scoreDelta` is exactly `score - maximum`, making penalties explicit.
+- `matchedPreference` identifies the user preference applied, or is `null` for
+  a neutral default rule.
+- `details` records the objective calculation.
+- `reasonCandidate` and `tradeoffCandidate` are deterministic explanation
+  inputs and may be `null`.
+- `affectedSections` and `affectedMeetings` identify the real schedule data used
+  by the rule.
+
+The schedule's total `score` must equal the sum of every breakdown `score`; the
+response model rejects inconsistent arithmetic.
 
 ## Deterministic Scoring
 
@@ -104,8 +133,10 @@ gap contribution and no compactness reason or gap trade-off is generated.
 Schedules are sorted by:
 
 1. Higher total score.
-2. Later earliest weekly meeting.
-3. Lexicographic course and section signature.
+2. Fewer unsatisfied soft preferences.
+3. Later earliest weekly meeting, only when an earliest-start preference exists.
+4. Better preferred-days-off match, only when that preference exists.
+5. Lexicographic course and section signature.
 
 Gap minutes are not used as an implicit tie-breaker. They affect ranking only
 through an explicit `gapPreference` score.
@@ -115,15 +146,15 @@ only after all legal candidates are scored and sorted.
 
 ## Reasons and Tradeoffs
 
-Base reasons and tradeoffs are generated directly from selected sections and
-the score breakdown. They never depend on AI. Fixed-section reasons, day-off
-tradeoffs, early-start tradeoffs, and gap details therefore remain tied to real
-schedule facts.
+Base reasons and tradeoffs are generated from selected fixed sections and the
+`reasonCandidate` and `tradeoffCandidate` fields in the score breakdown. They
+never depend on AI. A preference-neutral rule does not emit either candidate,
+so defaults cannot produce preference claims.
 
 Optional AI rewriting receives only base explanations and an allowlisted
 schedule summary. Its response must match a strict JSON schema and preserve the
 number of explanation items. The backend rejects references to unknown course
-codes, section IDs, weekdays, or times. Invalid JSON, provider failures, or
+codes, section IDs, weekdays, times, or locations. Invalid JSON, provider failures, or
 ungrounded text fall back to the deterministic explanations. Scores and ranks
 are calculated before rewriting and cannot be changed by it.
 

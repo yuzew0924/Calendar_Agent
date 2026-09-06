@@ -127,8 +127,8 @@ def test_gap_preference_none_is_neutral_and_silent() -> None:
     fragmented_result = next(item for item in evaluate_schedule(fragmented, Preferences()).breakdown if item.rule_name == "gaps")
 
     assert compact_result.score == fragmented_result.score == compact_result.maximum
-    assert compact_result.reason is None
-    assert compact_result.tradeoff is None
+    assert compact_result.reason_candidate is None
+    assert compact_result.tradeoff_candidate is None
 
 
 def test_same_schedule_receives_different_scores_for_gap_preferences() -> None:
@@ -140,6 +140,31 @@ def test_same_schedule_receives_different_scores_for_gap_preferences() -> None:
     }
 
     assert scores["compact"] > scores["balanced"] > scores["breaks"]
+
+
+def test_scoring_rules_preserve_explanation_provenance() -> None:
+    schedule = candidate(
+        ("A", "M", "09:30", "10:20"),
+        ("B", "M", "11:30", "12:20"),
+    )
+    evaluation = evaluate_schedule(
+        schedule,
+        Preferences(earliest_start="10:00", gap_preference="compact"),
+    )
+
+    earliest = next(
+        item for item in evaluation.breakdown if item.rule_name == "earliestStart"
+    )
+    gaps = next(item for item in evaluation.breakdown if item.rule_name == "gaps")
+    assert earliest.matched_preference == "10:00"
+    assert earliest.score_delta == earliest.score - earliest.maximum
+    assert earliest.tradeoff_candidate
+    assert earliest.affected_sections == ("CSE 100 A",)
+    assert earliest.affected_meetings[0].day.value == "M"
+    assert gaps.matched_preference == "compact"
+    assert gaps.tradeoff_candidate
+    assert len(gaps.affected_meetings) == 2
+    assert evaluation.score == sum(item.score for item in evaluation.breakdown)
 
 
 def test_breaks_and_balanced_preferences_reward_moderate_gaps() -> None:
@@ -202,3 +227,36 @@ def test_ranking_does_not_prefer_shorter_gaps_when_preference_is_none() -> None:
     ranked = rank_schedules((compact_b, longer_gap_a), Preferences(), top_n=2)
 
     assert ranked[0].candidate == longer_gap_a
+
+
+def test_ranking_does_not_prefer_later_start_without_start_preference() -> None:
+    earlier_a = candidate(("A", "M", "08:30", "09:20"))
+    later_b = candidate(("B", "M", "13:30", "14:20"))
+
+    ranked = rank_schedules((later_b, earlier_a), Preferences(), top_n=2)
+
+    assert ranked[0].candidate == earlier_a
+
+
+def test_default_top_n_is_five_and_ranks_are_consecutive() -> None:
+    candidates = tuple(
+        candidate((section_id, "M", "11:30", "12:20"))
+        for section_id in ("F", "E", "D", "C", "B", "A")
+    )
+
+    ranked = rank_schedules(candidates, Preferences())
+
+    assert len(ranked) == 5
+    assert [item.rank for item in ranked] == [1, 2, 3, 4, 5]
+    assert [item.candidate.courses[0].selections[0].section.id for item in ranked] == [
+        "A", "B", "C", "D", "E"
+    ]
+
+
+def test_default_preferences_do_not_generate_preference_claims() -> None:
+    schedule = candidate(("A", "M", "11:30", "12:20"))
+
+    reasons, tradeoffs = build_schedule_explanations(schedule, Preferences())
+
+    assert reasons == ("No time conflicts",)
+    assert tradeoffs == ()

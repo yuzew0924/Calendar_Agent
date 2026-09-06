@@ -429,11 +429,48 @@ class GenerateScheduleResponse(APIModel):
         return self
 
 
+class AffectedMeeting(APIModel):
+    course_code: str = Field(min_length=1)
+    section_id: str = Field(min_length=1)
+    day: DayCode
+    start_time: time
+    end_time: time
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def validate_time_format(cls, value: object) -> object:
+        return parse_time_string(value) if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def validate_time_range(self) -> Self:
+        if self.start_time >= self.end_time:
+            raise ValueError("startTime must be earlier than endTime")
+        return self
+
+    @field_serializer("start_time", "end_time", when_used="json")
+    def serialize_time(self, value: time) -> str:
+        return value.strftime("%H:%M")
+
+
 class ScoreBreakdownItem(APIModel):
     score: float = Field(ge=0)
     maximum: float = Field(gt=0)
+    score_delta: float = Field(le=0)
+    matched_preference: str | None = Field(default=None, min_length=1)
     details: str = Field(min_length=1)
+    reason_candidate: str | None = Field(default=None, min_length=1)
+    tradeoff_candidate: str | None = Field(default=None, min_length=1)
     affected_sections: list[str] = Field(default_factory=list)
+    affected_meetings: list[AffectedMeeting] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_score_calculation(self) -> Self:
+        if self.score > self.maximum:
+            raise ValueError("score must not exceed maximum")
+        expected_delta = round(self.score - self.maximum, 2)
+        if abs(self.score_delta - expected_delta) > 0.001:
+            raise ValueError("scoreDelta must equal score minus maximum")
+        return self
 
 
 class ScheduleSection(APIModel):

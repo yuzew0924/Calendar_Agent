@@ -19,8 +19,16 @@ def build_schedule_explanations(
             reasons.append(f"Includes required section {course_code} {section_id}")
 
     if candidate.courses:
-        reasons.extend(item.reason for item in result.breakdown if item.reason)
-    tradeoffs.extend(item.tradeoff for item in result.breakdown if item.tradeoff)
+        reasons.extend(
+            item.reason_candidate
+            for item in result.breakdown
+            if item.reason_candidate
+        )
+    tradeoffs.extend(
+        item.tradeoff_candidate
+        for item in result.breakdown
+        if item.tradeoff_candidate
+    )
     return tuple(dict.fromkeys(reasons)), tuple(dict.fromkeys(tradeoffs))
 
 

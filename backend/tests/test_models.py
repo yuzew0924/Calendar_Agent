@@ -15,6 +15,7 @@ from app.models import (
     ParsedPreferences,
     Preferences,
     ScheduleRequest,
+    ScoreBreakdownItem,
     Section,
     SectionGroup,
 )
@@ -359,6 +360,18 @@ def test_core_model_schemas_use_documented_fields() -> None:
         "needsClarification",
         "clarificationQuestions",
     }
+
+
+def test_score_breakdown_rejects_inconsistent_delta() -> None:
+    with pytest.raises(ValidationError, match="scoreDelta must equal"):
+        ScoreBreakdownItem.model_validate(
+            {
+                "score": 20,
+                "maximum": 25,
+                "scoreDelta": 0,
+                "details": "Five-point penalty",
+            }
+        )
 
 
 def test_unknown_section_dependency_is_rejected(

@@ -89,6 +89,17 @@ def test_reason_writer_falls_back_on_hallucinated_fact() -> None:
         ("Starts at 10:30",),
     )
 
+    invented_location = json.dumps(
+        {
+            "reasons": ["Includes CSE 373 section A in KNE 120"],
+            "tradeoffs": ["Starts at 10:30"],
+        }
+    )
+    assert rewrite(invented_location) == (
+        ("Includes CSE 373 A",),
+        ("Starts at 10:30",),
+    )
+
     unknown_day = json.dumps(
         {"reasons": ["Includes section Z"], "tradeoffs": ["Meets on Sunday"]}
     )

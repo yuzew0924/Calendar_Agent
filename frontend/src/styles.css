@@ -142,6 +142,7 @@ h1, h2, h3, p { margin-top: 0; }
 .score-row > div { display: grid; gap: 2px; }
 .score-row strong { text-transform: capitalize; font-size: 0.76rem; }
 .score-row span { color: #6b788c; font-size: 0.68rem; }
+.score-row small { color: #477078; font-size: 0.65rem; }
 .score-row b { white-space: nowrap; color: #075762; font-size: 0.76rem; }
 .empty-state, .empty-detail { display: grid; place-items: center; border: 1px dashed #cbd6e3; border-radius: 7px; padding: 24px; color: #66758a; text-align: center; background: #fff; }
 .empty-state h3 { margin: 8px 0 4px; font-size: 0.9rem; }

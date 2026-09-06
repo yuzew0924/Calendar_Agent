@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -82,6 +83,21 @@ def test_generate_endpoint_returns_ranked_top_n_and_valid_schema() -> None:
     }
     assert isinstance(schedule["reasons"], list)
     assert isinstance(schedule["tradeoffs"], list)
+    assert schedule["score"] == sum(
+        item["score"] for item in schedule["scoreBreakdown"].values()
+    )
+    earliest = schedule["scoreBreakdown"]["earliestStart"]
+    assert set(earliest) == {
+        "score",
+        "maximum",
+        "scoreDelta",
+        "matchedPreference",
+        "details",
+        "reasonCandidate",
+        "tradeoffCandidate",
+        "affectedSections",
+        "affectedMeetings",
+    }
 
 
 def test_generate_endpoint_returns_stable_empty_result() -> None:
@@ -150,3 +166,35 @@ def test_reason_ai_failure_uses_deterministic_reasons(monkeypatch: Any) -> None:
 
     assert response.status_code == 200
     assert "No time conflicts" in response.json()["schedules"][0]["reasons"]
+
+
+def test_reason_ai_cannot_change_scores_or_ranks(monkeypatch: Any) -> None:
+    class EchoReasonClient:
+        async def generate_text(self, **request: Any) -> str:
+            payload = json.loads(request["input_text"])
+            return json.dumps(
+                {
+                    "reasons": payload["baseReasons"],
+                    "tradeoffs": payload["baseTradeoffs"],
+                }
+            )
+
+    baseline = TestClient(app).post(
+        "/api/schedules/generate",
+        json=parsed_request(enhanceReasons=False),
+    ).json()
+    monkeypatch.setattr("app.main.get_ai_client", lambda: EchoReasonClient())
+    enhanced = TestClient(app).post(
+        "/api/schedules/generate",
+        json=parsed_request(enhanceReasons=True),
+    ).json()
+
+    assert [item["rank"] for item in enhanced["schedules"]] == [
+        item["rank"] for item in baseline["schedules"]
+    ]
+    assert [item["score"] for item in enhanced["schedules"]] == [
+        item["score"] for item in baseline["schedules"]
+    ]
+    assert [item["scoreBreakdown"] for item in enhanced["schedules"]] == [
+        item["scoreBreakdown"] for item in baseline["schedules"]
+    ]

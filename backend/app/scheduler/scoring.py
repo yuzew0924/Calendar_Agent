@@ -38,9 +38,15 @@ class ScoringRuleResult:
     score: float
     maximum: float
     details: str
-    reason: str | None = None
-    tradeoff: str | None = None
+    matched_preference: str | None = None
+    reason_candidate: str | None = None
+    tradeoff_candidate: str | None = None
     affected_sections: tuple[str, ...] = ()
+    affected_meetings: tuple[MeetingFact, ...] = ()
+
+    @property
+    def score_delta(self) -> float:
+        return round(self.score - self.maximum, 2)
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,7 +133,16 @@ def _score_earliest_start(
     if not early:
         details = f"All class days start at or after {preferences.earliest_start:%H:%M}"
         return ScoringRuleResult(
-            "earliestStart", maximum, maximum, details, reason=details
+            "earliestStart",
+            maximum,
+            maximum,
+            details,
+            matched_preference=preferences.earliest_start.strftime("%H:%M"),
+            reason_candidate=details,
+            affected_sections=tuple(
+                dict.fromkeys(fact.label for fact in earliest_by_day.values())
+            ),
+            affected_meetings=tuple(earliest_by_day.values()),
         )
 
     total_minutes_early = sum(
@@ -142,8 +157,10 @@ def _score_earliest_start(
         round(maximum - penalty, 2),
         maximum,
         f"{len(early)} class day(s) start before {preferences.earliest_start:%H:%M}",
-        tradeoff=f"{len(early)} class day(s) start before the preferred {preferences.earliest_start:%H:%M}",
+        matched_preference=preferences.earliest_start.strftime("%H:%M"),
+        tradeoff_candidate=f"{len(early)} class day(s) start before the preferred {preferences.earliest_start:%H:%M}",
         affected_sections=labels,
+        affected_meetings=tuple(early),
     )
 
 
@@ -173,20 +190,29 @@ def _score_time_of_day(
     )
     if len(matching) == len(facts):
         return ScoringRuleResult(
-            "preferredTimeOfDay", maximum, maximum, details, reason=details
+            "preferredTimeOfDay",
+            maximum,
+            maximum,
+            details,
+            matched_preference=preferred.value,
+            reason_candidate=details,
+            affected_sections=tuple(dict.fromkeys(fact.label for fact in facts)),
+            affected_meetings=facts,
         )
     return ScoringRuleResult(
         "preferredTimeOfDay",
         round(score, 2),
         maximum,
         details,
-        tradeoff=(
+        matched_preference=preferred.value,
+        tradeoff_candidate=(
             f"{len(facts) - len(matching)} weekly meeting(s) fall outside the "
             f"preferred {preferred.value}"
         ),
         affected_sections=tuple(
             dict.fromkeys(fact.label for fact in facts if fact not in matching)
         ),
+        affected_meetings=tuple(fact for fact in facts if fact not in matching),
     )
 
 
@@ -200,9 +226,19 @@ def _score_gaps(
     total_gap = sum(max(0, gap.minutes) for gap in gaps)
     mode = preferences.gap_preference
     details = f"{total_gap} total idle minute(s) across {len(gaps)} adjacent class gap(s)"
+    affected_meetings = tuple(
+        dict.fromkeys(fact for gap in gaps for fact in (gap.before, gap.after))
+    )
     if mode is GapPreference.NONE:
         return ScoringRuleResult(
-            "gaps", maximum, maximum, f"Gap preference not set; {details}"
+            "gaps",
+            maximum,
+            maximum,
+            f"Gap preference not set; {details}",
+            affected_sections=tuple(
+                dict.fromkeys(fact.label for fact in affected_meetings)
+            ),
+            affected_meetings=affected_meetings,
         )
 
     if mode is GapPreference.COMPACT:
@@ -234,9 +270,11 @@ def _score_gaps(
         round(score, 2),
         maximum,
         f"{mode.value} preference: {details}",
-        reason=reason,
-        tradeoff=tradeoff,
+        matched_preference=mode.value,
+        reason_candidate=reason,
+        tradeoff_candidate=tradeoff,
         affected_sections=affected,
+        affected_meetings=affected_meetings,
     )
 
 
@@ -268,11 +306,13 @@ def _score_preferred_days_off(
         round(score, 2),
         maximum,
         f"{len(satisfied)} of {len(preferred)} preferred day(s) are free",
-        reason=reason,
-        tradeoff=tradeoff,
+        matched_preference=",".join(day.value for day in preferred),
+        reason_candidate=reason,
+        tradeoff_candidate=tradeoff,
         affected_sections=tuple(
             dict.fromkeys(fact.label for fact in facts if fact.day in missed)
         ),
+        affected_meetings=tuple(fact for fact in facts if fact.day in missed),
     )
 
 

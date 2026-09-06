@@ -37,6 +37,7 @@ SECTION_REFERENCE_PATTERN = re.compile(
     r"\b([A-Z]{2,4}\s\d{3})\s+(?:section\s+)?([A-Z][A-Z0-9]*)\b"
 )
 STANDALONE_SECTION_PATTERN = re.compile(r"\bsection\s+([A-Z][A-Z0-9]*)\b")
+LOCATION_LIKE_PATTERN = re.compile(r"\b[A-Z]{2,6}\s\d{2,4}\b")
 TIME_PATTERN = re.compile(r"\b(?:[01]\d|2[0-3]):[0-5]\d\b")
 WEEKDAY_PATTERN = re.compile(
     r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b"
@@ -132,6 +133,8 @@ def _validate_rewrite_facts(
             raise ValueError("AI reason rewrite referenced an unknown time")
         if not set(WEEKDAY_PATTERN.findall(item)).issubset(allowed_days):
             raise ValueError("AI reason rewrite referenced an unknown weekday")
+        if not set(LOCATION_LIKE_PATTERN.findall(item)).issubset(allowed_courses):
+            raise ValueError("AI reason rewrite referenced an unknown location")
 
 
 class ReasonWriter:

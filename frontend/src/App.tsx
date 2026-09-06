@@ -64,8 +64,19 @@ type ParsedPreferences = {
 type ScoreBreakdownItem = {
   score: number;
   maximum: number;
+  scoreDelta: number;
+  matchedPreference: string | null;
   details: string;
+  reasonCandidate: string | null;
+  tradeoffCandidate: string | null;
   affectedSections: string[];
+  affectedMeetings: Array<{
+    courseCode: string;
+    sectionId: string;
+    day: DayCode;
+    startTime: string;
+    endTime: string;
+  }>;
 };
 
 type ScheduleSection = {
@@ -617,7 +628,7 @@ function ResultsView({ response, onBack }: { response: GenerateResponse; onBack:
             <div className="insight-grid">
               <section className="panel insight-panel"><h3>Why this works</h3><ul>{selected.reasons.map((reason) => <li key={reason}><CheckCircle2 size={16} />{reason}</li>)}</ul></section>
               <section className="panel insight-panel tradeoffs"><h3>Trade-offs</h3>{selected.tradeoffs.length ? <ul>{selected.tradeoffs.map((tradeoff) => <li key={tradeoff}><AlertCircle size={16} />{tradeoff}</li>)}</ul> : <p>No preference trade-offs.</p>}</section>
-              <section className="panel score-panel"><h3>Score breakdown</h3>{Object.entries(selected.scoreBreakdown).map(([rule, item]) => <div className="score-row" key={rule}><div><strong>{rule.replace(/([A-Z])/g, " $1")}</strong><span>{item.details}</span></div><b>{item.score}/{item.maximum}</b></div>)}</section>
+              <section className="panel score-panel"><h3>Score breakdown</h3>{Object.entries(selected.scoreBreakdown).map(([rule, item]) => <div className="score-row" key={rule}><div><strong>{rule.replace(/([A-Z])/g, " $1")}</strong><span>{item.details}</span>{item.matchedPreference && <small>Matched: {item.matchedPreference} · Delta: {item.scoreDelta}</small>}</div><b>{item.score}/{item.maximum}</b></div>)}</section>
             </div>
           </>
         ) : <div className="empty-detail"><CalendarDays size={34} /><h3>No schedule can satisfy the current input</h3><p>Return to the input screen to revise fixed sections, availability rules, meeting times, or empty section groups.</p></div>}

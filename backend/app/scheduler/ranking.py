@@ -44,12 +44,34 @@ def rank_schedules(
         )
         evaluated.append((candidate, evaluation, reasons, tradeoffs))
 
-    evaluated.sort(
-        key=lambda item: (
-            -item[1].score,
-            -item[1].earliest_meeting_minute,
-            schedule_signature(item[0]),
+    def tie_breaker(item: tuple) -> tuple:
+        candidate, evaluation, _reasons, _tradeoffs = item
+        violations = sum(
+            result.tradeoff_candidate is not None for result in evaluation.breakdown
         )
+        earliest = (
+            -evaluation.earliest_meeting_minute
+            if preferences.earliest_start is not None
+            else 0
+        )
+        days_off_score = next(
+            (
+                -result.score
+                for result in evaluation.breakdown
+                if result.rule_name == "preferredDaysOff"
+            ),
+            0,
+        ) if preferences.preferred_days_off else 0
+        return (
+            -evaluation.score,
+            violations,
+            earliest,
+            days_off_score,
+            schedule_signature(candidate),
+        )
+
+    evaluated.sort(
+        key=tie_breaker
     )
     return tuple(
         ScheduleRankingResult(

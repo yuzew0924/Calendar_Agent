@@ -374,6 +374,12 @@ unavailable rewrite falls back to deterministic text without failing schedule
 generation. See [`docs/ranking-and-api.md`](docs/ranking-and-api.md) for the
 complete response and scoring contract.
 
+Each score-breakdown rule includes its score delta, matched preference,
+calculation details, reason and trade-off candidates, and affected sections and
+meetings. The API validates that the total score equals the sum of these rule
+contributions. `topN` defaults to 5, and preference-aware deterministic
+tie-breakers produce stable ranks for identical input.
+
 ## Project Structure
 
 Current structure:
