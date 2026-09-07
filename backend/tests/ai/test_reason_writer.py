@@ -67,6 +67,17 @@ def test_reason_writer_accepts_grounded_rewrite() -> None:
         ("The class starts at 10:30",),
     )
 
+    alternate_time_format = json.dumps(
+        {
+            "reasons": ["Includes CSE 373 section A on Mon"],
+            "tradeoffs": ["The class starts at 10:30 AM"],
+        }
+    )
+    assert rewrite(alternate_time_format) == (
+        ("Includes CSE 373 section A on Mon",),
+        ("The class starts at 10:30 AM",),
+    )
+
 
 def test_reason_writer_falls_back_on_hallucinated_fact() -> None:
     output = json.dumps(
@@ -104,6 +115,25 @@ def test_reason_writer_falls_back_on_hallucinated_fact() -> None:
         {"reasons": ["Includes section Z"], "tradeoffs": ["Meets on Sunday"]}
     )
     assert rewrite(unknown_day) == (
+        ("Includes CSE 373 A",),
+        ("Starts at 10:30",),
+    )
+
+    unknown_time = json.dumps(
+        {"reasons": ["Includes CSE 373 A"], "tradeoffs": ["Starts at 9:30 AM"]}
+    )
+    assert rewrite(unknown_time) == (
+        ("Includes CSE 373 A",),
+        ("Starts at 10:30",),
+    )
+
+    long_unknown_course = json.dumps(
+        {
+            "reasons": ["Includes ENGINEERING 999 section A"],
+            "tradeoffs": ["Starts at 10:30"],
+        }
+    )
+    assert rewrite(long_unknown_course) == (
         ("Includes CSE 373 A",),
         ("Starts at 10:30",),
     )

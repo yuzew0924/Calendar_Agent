@@ -32,15 +32,21 @@ Do not add courses, sections, weekdays, times, locations, preferences, scores, o
 Do not return Markdown or explanatory text outside the JSON object.
 """
 
-COURSE_PATTERN = re.compile(r"\b[A-Z]{2,4}\s\d{3}\b")
+COURSE_PATTERN = re.compile(r"\b[A-Z][A-Z0-9&.-]{1,15}\s\d{2,4}[A-Z]?\b")
 SECTION_REFERENCE_PATTERN = re.compile(
-    r"\b([A-Z]{2,4}\s\d{3})\s+(?:section\s+)?([A-Z][A-Z0-9]*)\b"
+    r"\b([A-Z][A-Z0-9&.-]{1,15}\s\d{2,4}[A-Z]?)\s+"
+    r"(?:section\s+)?([A-Z][A-Z0-9]*)\b"
 )
 STANDALONE_SECTION_PATTERN = re.compile(r"\bsection\s+([A-Z][A-Z0-9]*)\b")
 LOCATION_LIKE_PATTERN = re.compile(r"\b[A-Z]{2,6}\s\d{2,4}\b")
-TIME_PATTERN = re.compile(r"\b(?:[01]\d|2[0-3]):[0-5]\d\b")
+TIME_PATTERN = re.compile(
+    r"\b((?:[01]?\d|2[0-3]):[0-5]\d)(?:\s*([AP]M))?\b",
+    re.IGNORECASE,
+)
 WEEKDAY_PATTERN = re.compile(
-    r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b"
+    r"\b(Monday|Mon|Tuesday|Tue|Wednesday|Wed|Thursday|Thu|Friday|Fri|"
+    r"Saturday|Sat|Sunday|Sun)\b",
+    re.IGNORECASE,
 )
 DAY_NAMES = {
     "M": "Monday",
@@ -49,6 +55,36 @@ DAY_NAMES = {
     "Th": "Thursday",
     "F": "Friday",
 }
+DAY_ALIASES = {
+    alias.lower(): full_name
+    for full_name, aliases in {
+        "Monday": ("Monday", "Mon"),
+        "Tuesday": ("Tuesday", "Tue"),
+        "Wednesday": ("Wednesday", "Wed"),
+        "Thursday": ("Thursday", "Thu"),
+        "Friday": ("Friday", "Fri"),
+        "Saturday": ("Saturday", "Sat"),
+        "Sunday": ("Sunday", "Sun"),
+    }.items()
+    for alias in aliases
+}
+
+
+def _referenced_times(text: str) -> set[str]:
+    normalized: set[str] = set()
+    for value, suffix in TIME_PATTERN.findall(text):
+        hour_text, minute = value.split(":")
+        hour = int(hour_text)
+        if suffix:
+            if not 1 <= hour <= 12:
+                normalized.add(f"invalid:{value}{suffix}")
+                continue
+            if suffix.upper() == "AM":
+                hour = 0 if hour == 12 else hour
+            elif hour != 12:
+                hour += 12
+        normalized.add(f"{hour:02d}:{minute}")
+    return normalized
 
 
 class RewrittenReasons(BaseModel):
@@ -129,9 +165,12 @@ def _validate_rewrite_facts(
             allowed_section_ids
         ):
             raise ValueError("AI reason rewrite referenced an unknown section")
-        if not set(TIME_PATTERN.findall(item)).issubset(allowed_times):
+        if not _referenced_times(item).issubset(allowed_times):
             raise ValueError("AI reason rewrite referenced an unknown time")
-        if not set(WEEKDAY_PATTERN.findall(item)).issubset(allowed_days):
+        referenced_days = {
+            DAY_ALIASES[day.lower()] for day in WEEKDAY_PATTERN.findall(item)
+        }
+        if not referenced_days.issubset(allowed_days):
             raise ValueError("AI reason rewrite referenced an unknown weekday")
         if not set(LOCATION_LIKE_PATTERN.findall(item)).issubset(allowed_courses):
             raise ValueError("AI reason rewrite referenced an unknown location")

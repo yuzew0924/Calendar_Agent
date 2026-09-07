@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.ai.client import AIRequestTimeoutError
 from app.main import app
-from app.models import GenerateSchedulesApiResponse
+from app.models import GenerateSchedulesApiResponse, ParsedPreferences
 
 
 def courses() -> list[dict[str, object]]:
@@ -69,9 +69,38 @@ def test_generate_endpoint_returns_ranked_top_n_and_valid_schema() -> None:
     assert response.status_code == 200
     body = response.json()
     validated = GenerateSchedulesApiResponse.model_validate(body)
+    assert set(body) == {
+        "interpretedPreferences",
+        "schedules",
+        "count",
+        "warnings",
+    }
+    assert set(body["interpretedPreferences"]) == {
+        "earliestStart",
+        "earliestStartIsHard",
+        "preferredDaysOff",
+        "requiredDaysOff",
+        "preferredTimeOfDay",
+        "gapPreference",
+        "fixedSections",
+        "requireOpenSections",
+        "hardConstraints",
+        "softPreferences",
+        "conflicts",
+        "needsClarification",
+        "clarificationQuestions",
+    }
     assert validated.count == 1
     assert len(validated.schedules) == 1
     schedule = body["schedules"][0]
+    assert set(schedule) == {
+        "rank",
+        "score",
+        "sections",
+        "scoreBreakdown",
+        "reasons",
+        "tradeoffs",
+    }
     assert schedule["rank"] == 1
     assert isinstance(schedule["score"], (int, float))
     assert schedule["sections"][0]["sectionId"] == "B"
@@ -98,6 +127,34 @@ def test_generate_endpoint_returns_ranked_top_n_and_valid_schema() -> None:
         "affectedSections",
         "affectedMeetings",
     }
+
+
+def test_generate_endpoint_accepts_preference_text(monkeypatch: Any) -> None:
+    class SuccessfulParser:
+        async def parse(
+            self,
+            preference_text: str,
+            supplied_courses: object,
+        ) -> ParsedPreferences:
+            assert preference_text == "I prefer afternoon classes."
+            assert supplied_courses
+            return ParsedPreferences(preferredTimeOfDay="afternoon")
+
+    monkeypatch.setattr("app.main.get_preference_parser", lambda: SuccessfulParser())
+    response = TestClient(app).post(
+        "/api/schedules/generate",
+        json={
+            "courses": courses(),
+            "preferenceText": "I prefer afternoon classes.",
+            "topN": 1,
+            "enhanceReasons": False,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["interpretedPreferences"]["preferredTimeOfDay"] == "afternoon"
+    assert body["schedules"][0]["sections"][0]["sectionId"] == "B"
 
 
 def test_generate_endpoint_returns_stable_empty_result() -> None:
