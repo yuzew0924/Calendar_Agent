@@ -157,6 +157,29 @@ def test_generate_endpoint_accepts_preference_text(monkeypatch: Any) -> None:
     assert body["schedules"][0]["sections"][0]["sectionId"] == "B"
 
 
+def test_generate_endpoint_honors_top_n_and_is_deterministic() -> None:
+    payload = parsed_request(topN=2)
+
+    first_response = TestClient(app).post(
+        "/api/schedules/generate",
+        json=payload,
+    )
+    second_response = TestClient(app).post(
+        "/api/schedules/generate",
+        json=payload,
+    )
+
+    assert first_response.status_code == second_response.status_code == 200
+    first = GenerateSchedulesApiResponse.model_validate(first_response.json())
+    second = GenerateSchedulesApiResponse.model_validate(second_response.json())
+    assert first == second
+    assert first.count == 2
+    assert first.count <= payload["topN"]
+    assert [schedule.rank for schedule in first.schedules] == [1, 2]
+    assert all(schedule.reasons for schedule in first.schedules)
+    assert all(isinstance(schedule.tradeoffs, list) for schedule in first.schedules)
+
+
 def test_generate_endpoint_returns_stable_empty_result() -> None:
     response = TestClient(app).post(
         "/api/schedules/generate",

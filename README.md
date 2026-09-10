@@ -374,11 +374,44 @@ unavailable rewrite falls back to deterministic text without failing schedule
 generation. See [`docs/ranking-and-api.md`](docs/ranking-and-api.md) for the
 complete response and scoring contract.
 
+Scoring is preference-driven. In particular, gap length and compactness affect
+scores only when the user supplies `gapPreference: "compact"`, `"balanced"`, or
+`"breaks"`. With `gapPreference: "none"`, all schedules receive the same neutral
+gap contribution and gap shape does not affect ranking.
+
 Each score-breakdown rule includes its score delta, matched preference,
 calculation details, reason and trade-off candidates, and affected sections and
 meetings. The API validates that the total score equals the sum of these rule
 contributions. `topN` defaults to 5, and preference-aware deterministic
 tie-breakers produce stable ranks for identical input.
+
+When no legal schedule exists, the endpoint still returns HTTP 200 with the
+same stable response shape and actionable warnings:
+
+```json
+{
+  "interpretedPreferences": {
+    "earliestStart": null,
+    "earliestStartIsHard": false,
+    "preferredDaysOff": [],
+    "requiredDaysOff": [],
+    "preferredTimeOfDay": "none",
+    "gapPreference": "none",
+    "fixedSections": [],
+    "requireOpenSections": true,
+    "hardConstraints": [],
+    "softPreferences": [],
+    "conflicts": [],
+    "needsClarification": false,
+    "clarificationQuestions": []
+  },
+  "schedules": [],
+  "count": 0,
+  "warnings": [
+    "All remaining combinations have meeting conflicts or incompatible course-component requirements."
+  ]
+}
+```
 
 ## Project Structure
 

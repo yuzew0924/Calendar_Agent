@@ -164,7 +164,21 @@ No legal candidates is a successful HTTP 200 response:
 
 ```json
 {
-  "interpretedPreferences": {},
+  "interpretedPreferences": {
+    "earliestStart": null,
+    "earliestStartIsHard": false,
+    "preferredDaysOff": [],
+    "requiredDaysOff": [],
+    "preferredTimeOfDay": "none",
+    "gapPreference": "none",
+    "fixedSections": [],
+    "requireOpenSections": true,
+    "hardConstraints": [],
+    "softPreferences": [],
+    "conflicts": [],
+    "needsClarification": false,
+    "clarificationQuestions": []
+  },
   "schedules": [],
   "count": 0,
   "warnings": [
@@ -173,7 +187,6 @@ No legal candidates is a successful HTTP 200 response:
 }
 ```
 
-The actual `interpretedPreferences` value includes all defaulted schema fields.
 Warnings identify empty declared groups, open-only section exhaustion,
 overlapping fixed sections, hard day/time filters, or conflicts among all
 remaining combinations. Multiple applicable diagnostics are returned together.
