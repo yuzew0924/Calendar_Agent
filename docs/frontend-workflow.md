@@ -1,13 +1,13 @@
 # Frontend Workflow
 
-The frontend provides one guided path from raw course data to ranked schedule
+The frontend provides one guided path from course availability to ranked schedule
 options. Users do not need to call backend endpoints manually.
 
 ## Main Flow
 
-1. Paste course JSON or select **Load sample data**. Loading the sample fills the
-   editor and immediately displays its course summary.
-2. Parse the data and review the course count and declared section groups.
+1. Enter a course name and add each possible lecture, quiz, or lab section row,
+   or select **Load sample data** for an immediate example.
+2. Add the course and review the course count and generated section groups.
 3. Enter schedule preferences in natural language.
 4. Send the preferences to `POST /parse-preferences`.
 5. Review the validated hard constraints, soft preferences, conflicts, and any
@@ -29,7 +29,7 @@ unresolved. **Revise preferences** returns to the input screen with the original
 ## Application States
 
 The UI provides feedback for initial input, preference parsing, schedule
-generation, successful results, JSON errors, FastAPI validation errors, AI
+generation, successful results, course-form errors, FastAPI validation errors, AI
 parsing failures, backend unavailability, and empty schedule results. An empty
 result renders every backend diagnostic and a route back to edit the input.
 
@@ -39,19 +39,24 @@ among all remaining combinations.
 
 ## Course Input Rules
 
-The MVP accepts either a JSON array of courses or an object containing a
-`courses` array. The frontend summarizes each course's actual groups after a
-successful parse.
+The course builder accepts a course code and repeatable section rows. Each row
+contains a component type, section ID, weekday codes, start time, and end time.
+All entered sections are treated as available (`open`). The frontend groups rows
+by component type and sends the resulting schema to the backend; users never
+need to write JSON.
 
 - A lecture-only course is valid.
-- Quiz and lab groups are processed only when they appear in the input.
+- Quiz and lab groups are created only when the user adds those row types.
 - The frontend never invents a missing component.
-- A declared group with an empty `sections` array remains required. It is shown
-  in the summary and will cause the scheduler to return no legal combinations.
-- Malformed JSON and missing structural fields are shown as input errors before
-  an API request is made.
+- Section IDs must be unique within a course and use uppercase letters or
+  numbers beginning with a letter.
+- Weekdays use `M`, `T`, `W`, `Th`, and `F`; compact values such as `MWF` work.
+- Start time must be earlier than end time.
+- Invalid rows are shown as form errors before an API request is made.
 
-The backend Pydantic models remain the authority for complete schema validation.
+The backend still supports and validates empty declared groups when requests are
+sent directly through the API. The Pydantic models remain the authority for
+complete schema validation.
 
 ## Preference Input
 

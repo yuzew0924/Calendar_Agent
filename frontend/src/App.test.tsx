@@ -57,7 +57,7 @@ describe("App", () => {
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
   });
 
-  it("parses course JSON and shows the actual group structure", async () => {
+  it("adds a course from section rows and groups its components", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -69,11 +69,24 @@ describe("App", () => {
     );
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Parse course data" }));
+    fireEvent.change(screen.getByLabelText("Course name"), {
+      target: { value: "CSE 414" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add section time" }));
+    fireEvent.change(screen.getByLabelText("Section 2 type"), {
+      target: { value: "quiz" }
+    });
+    fireEvent.change(screen.getByLabelText("Section 2 ID"), {
+      target: { value: "AA" }
+    });
+    fireEvent.change(screen.getByLabelText("Section 2 days"), {
+      target: { value: "Th" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add course" }));
 
-    expect(await screen.findByText("2 courses parsed")).toBeInTheDocument();
-    expect(screen.getAllByText("lecture · choose 1 · 2 sections")).toHaveLength(2);
-    expect(screen.getByText("quiz · choose 1 · 2 sections")).toBeInTheDocument();
+    expect(await screen.findByText("CSE 414")).toBeInTheDocument();
+    expect(screen.getByText("lecture · choose 1 · 1 section")).toBeInTheDocument();
+    expect(screen.getByText("quiz · choose 1 · 1 section")).toBeInTheDocument();
   });
 
   it("loads sample data and immediately displays its course summary", () => {
@@ -83,10 +96,8 @@ describe("App", () => {
     );
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Course JSON"), { target: { value: "[]" } });
     fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
 
-    expect((screen.getByLabelText("Course JSON") as HTMLTextAreaElement).value).toContain("CSE 373");
     expect(screen.getByText("2 courses parsed")).toBeInTheDocument();
     expect(screen.getByText("CSE 373")).toBeInTheDocument();
     expect(screen.getByText("INFO 370")).toBeInTheDocument();
@@ -111,7 +122,7 @@ describe("App", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a JSON parse error and clears an invalid summary", async () => {
+  it("shows a clear error for invalid section days", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -123,11 +134,12 @@ describe("App", () => {
     );
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Course JSON"), { target: { value: "{" } });
-    fireEvent.click(screen.getByRole("button", { name: "Parse course data" }));
+    fireEvent.change(screen.getByLabelText("Course name"), { target: { value: "CSE 414" } });
+    fireEvent.change(screen.getByLabelText("Section 1 days"), { target: { value: "Sunday" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add course" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("JSON parse error");
-    expect(screen.queryByText(/courses parsed/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Use weekday codes");
+    expect(screen.queryByText("Added courses")).not.toBeInTheDocument();
   });
 
   it("supports the parse, confirm, generate, and option review flow", async () => {
@@ -203,7 +215,7 @@ describe("App", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Parse course data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
     fireEvent.click(screen.getByRole("button", { name: /Interpret preferences/ }));
 
     expect(await screen.findByRole("heading", { name: "Confirm your schedule requirements" })).toBeInTheDocument();
@@ -299,34 +311,28 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /Edit courses/ })).toBeInTheDocument();
   });
 
-  it("accepts a lecture-only course and preserves a declared empty group", async () => {
+  it("supports lecture and lab groups without inventing other components", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok" }), { status: 200 }))
     );
     render(<App />);
 
-    const courses = [
-      {
-        code: "CHEM 142",
-        groups: [
-          {
-            type: "lecture",
-            choose: 1,
-            sections: [{ id: "A", status: "open", meetings: [] }]
-          },
-          { type: "lab", choose: 1, sections: [] }
-        ]
-      }
-    ];
-    fireEvent.change(screen.getByLabelText("Course JSON"), {
-      target: { value: JSON.stringify(courses) }
+    fireEvent.change(screen.getByLabelText("Course name"), {
+      target: { value: "CHEM 142" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "Parse course data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add section time" }));
+    fireEvent.change(screen.getByLabelText("Section 2 type"), {
+      target: { value: "lab" }
+    });
+    fireEvent.change(screen.getByLabelText("Section 2 ID"), {
+      target: { value: "LA" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add course" }));
 
-    expect(await screen.findByText("1 course parsed")).toBeInTheDocument();
+    expect(await screen.findByText("CHEM 142")).toBeInTheDocument();
     expect(screen.getByText("lecture · choose 1 · 1 section")).toBeInTheDocument();
-    expect(screen.getByText("lab · choose 1 · 0 sections")).toBeInTheDocument();
-    expect(screen.getByText(/Declared empty groups remain required/)).toBeInTheDocument();
+    expect(screen.getByText("lab · choose 1 · 1 section")).toBeInTheDocument();
+    expect(screen.queryByText(/quiz ·/)).not.toBeInTheDocument();
   });
 });

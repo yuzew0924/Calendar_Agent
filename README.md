@@ -109,12 +109,14 @@ Example workflow:
 6. Compare the ranked results in the weekly calendar view.
 
 The implemented frontend presents this as a three-stage guided workflow:
-**Course data**, **Confirm preferences**, and **Schedule options**. It accepts
-pasted course JSON, summarizes the real section-group structure, calls the AI
-preference parser, lets the user confirm the validated interpretation, and then
-calls the ranked schedule API. Candidate schedules can be switched directly in
-the results view, with a weekly calendar, score, reasons, trade-offs, and score
-breakdown for each option. See
+**Course data**, **Confirm preferences**, and **Schedule options**. Users add
+courses through a structured form with repeatable lecture, quiz, and lab rows;
+the frontend converts those rows into the backend course schema internally. It
+summarizes the resulting section groups, calls the AI preference parser, lets
+the user confirm the validated interpretation, and then calls the ranked
+schedule API. Candidate schedules can be switched directly in the results view,
+with a weekly calendar, score, reasons, trade-offs, and score breakdown for each
+option. See
 [`docs/frontend-workflow.md`](docs/frontend-workflow.md) for the complete UI flow
 and course-input behavior.
 
@@ -124,10 +126,10 @@ generation. Validation, AI, connectivity, and no-result states provide specific
 recovery information instead of a generic failure message.
 
 For a no-setup demonstration, select **Load sample data**. The bundled courses
-populate the JSON editor, render a structural summary, and contain at least one
-conflict-free combination. Preference text accepts English or Chinese. Blank
-preference text is handled as an explicit default of open sections only, with
-no additional ranking preferences.
+render a structural summary and contain at least one conflict-free combination.
+Preference text accepts English or Chinese. Blank preference text is handled as
+an explicit default of open sections only, with no additional ranking
+preferences.
 
 ## Example Input
 
