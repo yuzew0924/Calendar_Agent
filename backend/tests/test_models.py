@@ -387,6 +387,79 @@ def test_unknown_section_dependency_is_rejected(
         ScheduleRequest.model_validate(invalid_request)
 
 
+def test_quiz_parent_must_reference_a_lecture_in_the_same_course() -> None:
+    with pytest.raises(ValidationError, match="must reference a lecture section"):
+        Course.model_validate(
+            {
+                "code": "CSE 312",
+                "groups": [
+                    {
+                        "type": "lecture",
+                        "sections": [
+                            {"id": "A", "status": "open", "meetings": []}
+                        ],
+                    },
+                    {
+                        "type": "quiz",
+                        "sections": [
+                            {
+                                "id": "BA",
+                                "status": "open",
+                                "parentSectionId": "B",
+                                "meetings": [],
+                            }
+                        ],
+                    },
+                ],
+            }
+        )
+
+
+def test_inferred_quiz_parent_must_exist() -> None:
+    with pytest.raises(ValidationError, match=r"same course: B"):
+        Course.model_validate(
+            {
+                "code": "CSE 312",
+                "groups": [
+                    {
+                        "type": "lecture",
+                        "sections": [
+                            {"id": "A", "status": "open", "meetings": []}
+                        ],
+                    },
+                    {
+                        "type": "quiz",
+                        "sections": [
+                            {"id": "BA", "status": "open", "meetings": []}
+                        ],
+                    },
+                ],
+            }
+        )
+
+
+def test_lecture_rejects_parent_section_id() -> None:
+    with pytest.raises(ValidationError, match="must not have parentSectionId"):
+        Course.model_validate(
+            {
+                "code": "CSE 312",
+                "groups": [
+                    {
+                        "type": "lecture",
+                        "sections": [
+                            {
+                                "id": "A",
+                                "status": "open",
+                                "parentSectionId": "A",
+                                "meetings": [],
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+
 def test_generate_response_accepts_empty_scaffold() -> None:
     response = GenerateScheduleResponse.model_validate(
         {"schedules": [], "count": 0, "warnings": []}

@@ -107,8 +107,18 @@ A valid lecture+lab structure:
       "type": "lab",
       "choose": 1,
       "sections": [
-        {"id": "AL", "status": "open", "meetings": []},
-        {"id": "BL", "status": "open", "meetings": []}
+        {
+          "id": "AL",
+          "status": "open",
+          "parentSectionId": "A",
+          "meetings": []
+        },
+        {
+          "id": "BL",
+          "status": "open",
+          "parentSectionId": "A",
+          "meetings": []
+        }
       ]
     }
   ]
@@ -153,12 +163,31 @@ strings directly.
 | `status` | `status` | `open \| closed \| unknown` | Yes | Enum value only |
 | `sln` | `sln` | `string \| null` | No | Defaults to `null` |
 | `meetings` | `meetings` | `Meeting[]` | Yes | May be empty |
+| `parentSectionId` | `parent_section_id` | `string \| null` | No | Must reference a lecture in the same course |
 | `requiredSectionIds` | `required_section_ids` | `string[]` | No | Defaults to `[]` |
 
 Component type is not duplicated on a section. The containing group determines
 whether the section is a lecture, quiz, lab, discussion, or other component.
 `requiredSectionIds` may reference sections in another group of the same course;
 unknown, same-group, self, and cyclic dependencies are rejected.
+
+### Linked Sections
+
+Quiz and lab sections belong to one lecture. Prefer an explicit
+`parentSectionId` because it remains correct even when section naming is
+nonstandard. When it is omitted, the backend infers the parent from the first
+character of the section ID: `AA`, `AB`, and `AC` belong to lecture `A`, while
+`BA`, `BB`, and `BC` belong to lecture `B`. The inferred value is stored on the
+validated model.
+
+- A lecture must not define `parentSectionId`.
+- A quiz or lab parent must exist in the same course's lecture group.
+- An explicit parent overrides prefix inference.
+- A lecture is valid by itself when no quiz or lab group is declared.
+- If a required quiz or lab group has no section linked to a selected lecture,
+  that lecture produces no course combination.
+- `requiredSectionIds` may still express additional cross-group dependencies,
+  but any lecture dependency must agree with `parentSectionId`.
 
 ## SectionGroup
 
@@ -169,9 +198,10 @@ unknown, same-group, self, and cyclic dependencies are rejected.
 | `sections` | `sections` | `Section[]` | Yes | May be empty, producing zero combinations |
 
 The generator selects exactly one section from every group explicitly present
-in the course. It does not add missing quiz or lab groups. It also does not skip
-an empty group: if a declared group has no sections, that course has zero valid
-combinations and the complete request has zero schedules.
+in the course. It selects a lecture first, then limits quiz and lab choices to
+sections linked to that lecture. It does not add missing quiz or lab groups. It
+also does not skip an empty group: if a declared group has no sections, that
+course has zero valid combinations and the complete request has zero schedules.
 
 ## Course
 

@@ -23,13 +23,17 @@ def section(
     end: str = "10:20",
     status: str = "open",
     required_section_ids: list[str] | None = None,
+    parent_section_id: str | None = None,
 ) -> dict[str, object]:
-    return {
+    value: dict[str, object] = {
         "id": section_id,
         "status": status,
         "meetings": [{"days": [day], "startTime": start, "endTime": end}],
         "requiredSectionIds": required_section_ids or [],
     }
+    if parent_section_id is not None:
+        value["parentSectionId"] = parent_section_id
+    return value
 
 
 def section_without_meetings(
@@ -75,23 +79,23 @@ def test_group_combinations_select_one_section() -> None:
     ("groups", "expected_count"),
     [
         ([("lecture", ["A", "B"])], 2),
-        ([("lecture", ["A", "B"]), ("lab", ["AL", "BL", "CL"])], 6),
-        ([("lecture", ["A", "B"]), ("quiz", ["AA", "AB"])], 4),
+        ([("lecture", ["A", "B"]), ("lab", ["AL", "BL"])], 2),
+        ([("lecture", ["A", "B"]), ("quiz", ["AA", "AB", "BA"])], 3),
         (
             [
                 ("lecture", ["A", "B"]),
-                ("quiz", ["AA", "AB"]),
+                ("quiz", ["AA", "AB", "BA"]),
                 ("lab", ["AL", "BL"]),
             ],
-            8,
+            3,
         ),
         (
             [
                 ("lecture", ["A", "B"]),
-                ("quiz", ["AA", "AB", "AC"]),
+                ("quiz", ["AA", "AB", "AC", "BA", "BB", "BC"]),
                 ("lab", ["AL", "BL"]),
             ],
-            12,
+            6,
         ),
     ],
 )
@@ -123,6 +127,141 @@ def test_course_combinations_follow_only_declared_groups(
         len({selected.group_type for selected in choice.selections}) == len(groups)
         for choice in choices
     )
+
+
+def test_lecture_sections_only_pair_with_their_linked_quizzes() -> None:
+    course = Course.model_validate(
+        {
+            "code": "CSE 312",
+            "groups": [
+                {
+                    "type": "lecture",
+                    "sections": [
+                        section_without_meetings("A"),
+                        section_without_meetings("B"),
+                    ],
+                },
+                {
+                    "type": "quiz",
+                    "sections": [
+                        section_without_meetings(section_id)
+                        for section_id in ("AA", "AB", "AC", "BA", "BB", "BC")
+                    ],
+                },
+            ],
+        }
+    )
+
+    combinations = generate_course_combinations(course)
+    selected_ids = [
+        tuple(choice.section.id for choice in combination.selections)
+        for combination in combinations
+    ]
+
+    assert selected_ids == [
+        ("A", "AA"),
+        ("A", "AB"),
+        ("A", "AC"),
+        ("B", "BA"),
+        ("B", "BB"),
+        ("B", "BC"),
+    ]
+    assert ("A", "BA") not in selected_ids
+
+
+def test_lecture_quiz_and_lab_all_follow_parent_binding() -> None:
+    course = Course.model_validate(
+        {
+            "code": "CHEM 142",
+            "groups": [
+                {
+                    "type": "lecture",
+                    "sections": [
+                        section_without_meetings("A"),
+                        section_without_meetings("B"),
+                    ],
+                },
+                {
+                    "type": "quiz",
+                    "sections": [
+                        section_without_meetings("AA"),
+                        section_without_meetings("BA"),
+                    ],
+                },
+                {
+                    "type": "lab",
+                    "sections": [
+                        section_without_meetings("AL"),
+                        section_without_meetings("BL"),
+                    ],
+                },
+            ],
+        }
+    )
+
+    combinations = generate_course_combinations(course)
+
+    assert [
+        tuple(choice.section.id for choice in combination.selections)
+        for combination in combinations
+    ] == [("A", "AA", "AL"), ("B", "BA", "BL")]
+
+
+def test_explicit_parent_section_id_overrides_prefix_inference() -> None:
+    course = Course.model_validate(
+        {
+            "code": "CHEM 142",
+            "groups": [
+                {
+                    "type": "lecture",
+                    "sections": [section_without_meetings("A")],
+                },
+                {
+                    "type": "lab",
+                    "sections": [
+                        {
+                            **section_without_meetings("BL"),
+                            "parentSectionId": "A",
+                        }
+                    ],
+                },
+            ],
+        }
+    )
+
+    assert course.groups[1].sections[0].parent_section_id == "A"
+    assert len(generate_course_combinations(course)) == 1
+
+
+def test_incompatible_fixed_lecture_and_quiz_produce_no_result() -> None:
+    request = ScheduleRequest.model_validate(
+        {
+            "courses": [
+                {
+                    "code": "CSE 312",
+                    "groups": [
+                        {
+                            "type": "lecture",
+                            "sections": [
+                                section_without_meetings("A"),
+                                section_without_meetings("B"),
+                            ],
+                        },
+                        {
+                            "type": "quiz",
+                            "sections": [
+                                section_without_meetings("AA"),
+                                section_without_meetings("BA"),
+                            ],
+                        },
+                    ],
+                }
+            ],
+            "preferences": {"fixedSections": {"CSE 312": ["A", "BA"]}},
+        }
+    )
+
+    assert generate_schedule_candidates(request) == ()
 
 
 def test_course_combination_preserves_section_metadata() -> None:

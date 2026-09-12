@@ -93,6 +93,11 @@ class Section(APIModel):
     status: SectionStatus
     sln: str | None = None
     meetings: list[Meeting]
+    parent_section_id: str | None = Field(
+        default=None,
+        min_length=1,
+        pattern=r"^[A-Z0-9]+$",
+    )
     required_section_ids: list[str] = Field(default_factory=list)
 
     @field_validator("required_section_ids")
@@ -136,6 +141,41 @@ class Course(APIModel):
                     raise ValueError("section IDs must be unique within a course")
                 sections[section.id] = section
                 section_types[section.id] = group.type
+
+        lecture_ids = {
+            section.id
+            for group in self.groups
+            if group.type is SectionType.LECTURE
+            for section in group.sections
+        }
+        for group in self.groups:
+            for section in group.sections:
+                if group.type is SectionType.LECTURE:
+                    if section.parent_section_id is not None:
+                        raise ValueError(
+                            f"lecture section {section.id} must not have parentSectionId"
+                        )
+                    continue
+                if group.type not in {SectionType.QUIZ, SectionType.LAB}:
+                    continue
+
+                parent_id = section.parent_section_id or section.id[0]
+                if parent_id not in lecture_ids:
+                    raise ValueError(
+                        f"section {section.id} parentSectionId must reference a "
+                        f"lecture section in the same course: {parent_id}"
+                    )
+                section.parent_section_id = parent_id
+
+                required_lecture_ids = {
+                    required_id
+                    for required_id in section.required_section_ids
+                    if section_types.get(required_id) is SectionType.LECTURE
+                }
+                if required_lecture_ids and required_lecture_ids != {parent_id}:
+                    raise ValueError(
+                        f"section {section.id} has conflicting lecture dependencies"
+                    )
 
         for section in sections.values():
             for required_id in section.required_section_ids:

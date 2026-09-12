@@ -19,8 +19,8 @@ The agent should accept:
 
 1. Normalize course and section data.
 2. Validate the `ScheduleRequest` and its nested course groups.
-3. Expand only the explicit course groups into combinations, selecting exactly
-   one section from every declared group.
+3. Select a lecture, then expand only compatible sections from every other
+   explicit group, selecting exactly one section from every declared group.
 4. Apply fixed-section constraints.
 5. Generate the Cartesian product across courses.
 6. Reject options with time conflicts.
@@ -47,6 +47,7 @@ Hard constraints:
 - No overlapping meetings.
 - Required fixed sections must be included.
 - Required course components must be selected.
+- Quiz and lab sections must be linked to the selected lecture.
 - Availability rules must be respected when the user asks to consider only open sections.
 
 Soft preferences:

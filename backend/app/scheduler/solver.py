@@ -52,6 +52,21 @@ def _dependencies_are_satisfied(selections: tuple[SectionChoice, ...]) -> bool:
     )
 
 
+def _linked_sections_are_satisfied(
+    selections: tuple[SectionChoice, ...],
+) -> bool:
+    lecture_ids = {
+        choice.section.id
+        for choice in selections
+        if choice.group_type is SectionType.LECTURE
+    }
+    return all(
+        choice.section.parent_section_id in lecture_ids
+        for choice in selections
+        if choice.group_type in {SectionType.QUIZ, SectionType.LAB}
+    )
+
+
 def generate_course_combinations(
     course: Course,
     *,
@@ -60,31 +75,54 @@ def generate_course_combinations(
 ) -> tuple[CourseCombination, ...]:
     """Generate valid combinations containing one section from every group."""
     fixed_ids = fixed_section_ids or set()
-    group_combinations = [
-        generate_group_combinations(
-            group,
-            require_open_sections=require_open_sections,
+    eligible_sections = {
+        group.type: tuple(
+            section
+            for section in group.sections
+            if not require_open_sections or section.status is SectionStatus.OPEN
         )
         for group in course.groups
-    ]
+    }
+    lecture_sections = eligible_sections.get(SectionType.LECTURE)
+    lecture_choices: tuple[Section | None, ...] = (
+        tuple(lecture_sections) if lecture_sections is not None else (None,)
+    )
     candidates: list[CourseCombination] = []
 
-    for group_selection in product(*group_combinations):
-        choices = tuple(
-            SectionChoice(group.type, section)
-            for group, selected_sections in zip(course.groups, group_selection, strict=True)
-            for section in selected_sections
-        )
-        candidate = CourseCombination(course_code=course.code, selections=choices)
-        if not course_combination_satisfies_hard_constraints(
-            candidate,
-            course,
-            require_open_sections=require_open_sections,
-            fixed_section_ids=fixed_ids,
-        ):
-            continue
+    for lecture in lecture_choices:
+        group_combinations: list[tuple[tuple[Section, ...], ...]] = []
+        for group in course.groups:
+            sections = eligible_sections[group.type]
+            if group.type is SectionType.LECTURE:
+                sections = (lecture,) if lecture is not None else ()
+            elif group.type in {SectionType.QUIZ, SectionType.LAB}:
+                sections = tuple(
+                    section
+                    for section in sections
+                    if section.parent_section_id == lecture.id
+                ) if lecture is not None else ()
+            group_combinations.append(tuple((section,) for section in sections))
 
-        candidates.append(candidate)
+        for group_selection in product(*group_combinations):
+            choices = tuple(
+                SectionChoice(group.type, section)
+                for group, selected_sections in zip(
+                    course.groups,
+                    group_selection,
+                    strict=True,
+                )
+                for section in selected_sections
+            )
+            candidate = CourseCombination(course_code=course.code, selections=choices)
+            if not course_combination_satisfies_hard_constraints(
+                candidate,
+                course,
+                require_open_sections=require_open_sections,
+                fixed_section_ids=fixed_ids,
+            ):
+                continue
+
+            candidates.append(candidate)
 
     return tuple(candidates)
 
@@ -145,6 +183,7 @@ def course_combination_satisfies_hard_constraints(
     return (
         fixed_section_ids.issubset(selected_ids)
         and _dependencies_are_satisfied(candidate.selections)
+        and _linked_sections_are_satisfied(candidate.selections)
         and not course_combination_has_conflict(candidate)
     )
 

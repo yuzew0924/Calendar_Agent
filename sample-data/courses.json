@@ -67,6 +67,7 @@
             {
               "id": "AL",
               "status": "open",
+              "parentSectionId": "A",
               "requiredSectionIds": ["A"],
               "meetings": [
                 {
@@ -80,6 +81,7 @@
             {
               "id": "BL",
               "status": "open",
+              "parentSectionId": "A",
               "requiredSectionIds": ["A"],
               "meetings": [
                 {
@@ -123,6 +125,7 @@
             {
               "id": "AA",
               "status": "open",
+              "parentSectionId": "A",
               "requiredSectionIds": ["A"],
               "meetings": [
                 {
@@ -142,6 +145,7 @@
             {
               "id": "AB",
               "status": "open",
+              "parentSectionId": "A",
               "requiredSectionIds": ["A"],
               "meetings": [
                 {

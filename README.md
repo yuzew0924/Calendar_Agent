@@ -194,6 +194,11 @@ lecture+quiz+lab courses in
   any other value. An empty declared group produces zero schedules.
 - Course components are defined only by `groups`. A missing quiz or lab group is
   not inferred or added by the backend.
+- Quiz and lab sections should provide `parentSectionId` referencing a lecture
+  in the same course. When omitted, `AA`/`AB`/`AC` are inferred as children of
+  lecture `A`, `BA`/`BB`/`BC` as children of lecture `B`, and so on.
+- The scheduler selects a lecture first and only combines it with linked quiz
+  and lab sections. An explicit parent overrides the section-ID prefix.
 - `fixedSections` maps an existing course `code` to existing section IDs in that
   course. When `requireOpenSections` is `true`, every fixed section must also be
   `open`.
@@ -589,6 +594,9 @@ Week 2 is complete when all of the following remain true:
   lecture+quiz+lab examples with open and closed sections.
 - Parsing a course preserves exactly its input groups and never adds absent
   components.
+- Quiz and lab sections reference a valid parent lecture, explicitly through
+  `parentSectionId` or through validated section-ID prefix inference.
+- Course combinations contain only lecture-compatible quiz and lab sections.
 - Invalid weekdays, time formats, time ranges, group selection counts, and fixed
   sections produce validation errors.
 - Running `cd backend && pytest` passes the complete backend test suite.
