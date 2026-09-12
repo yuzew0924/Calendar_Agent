@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronRight,
   LoaderCircle,
+  Pencil,
   Plus,
   RotateCcw,
   Sparkles,
@@ -31,6 +32,7 @@ type Section = {
   status: "open" | "closed" | "unknown";
   sln?: string | null;
   meetings: Meeting[];
+  parentSectionId?: string | null;
 };
 
 type SectionGroup = {
@@ -121,15 +123,17 @@ const sampleCourses: Course[] = [
           {
             id: "A",
             status: "open",
+            sln: "12301",
             meetings: [
-              { days: ["M", "W", "F"], startTime: "09:30", endTime: "10:20" }
+              { days: ["M", "W", "F"], startTime: "09:30", endTime: "10:20", location: "KNE 120" }
             ]
           },
           {
             id: "B",
             status: "open",
+            sln: "12302",
             meetings: [
-              { days: ["M", "W", "F"], startTime: "11:30", endTime: "12:20" }
+              { days: ["M", "W", "F"], startTime: "11:30", endTime: "12:20", location: "KNE 120" }
             ]
           }
         ]
@@ -141,12 +145,16 @@ const sampleCourses: Course[] = [
           {
             id: "AA",
             status: "open",
-            meetings: [{ days: ["Th"], startTime: "12:30", endTime: "13:20" }]
+            sln: "12303",
+            parentSectionId: "A",
+            meetings: [{ days: ["Th"], startTime: "12:30", endTime: "13:20", location: "LOW 101" }]
           },
           {
             id: "AB",
             status: "closed",
-            meetings: [{ days: ["Th"], startTime: "14:30", endTime: "15:20" }]
+            sln: "12304",
+            parentSectionId: "A",
+            meetings: [{ days: ["Th"], startTime: "14:30", endTime: "15:20", location: "LOW 102" }]
           }
         ]
       }
@@ -208,6 +216,10 @@ type SectionDraft = {
   days: string;
   startTime: string;
   endTime: string;
+  status: "open" | "closed" | "unknown";
+  sln: string;
+  location: string;
+  parentSectionId: string;
 };
 
 const newSectionDraft = (key: number, id = "A"): SectionDraft => ({
@@ -216,8 +228,31 @@ const newSectionDraft = (key: number, id = "A"): SectionDraft => ({
   id,
   days: "MWF",
   startTime: "09:30",
-  endTime: "10:20"
+  endTime: "10:20",
+  status: "open",
+  sln: "",
+  location: "",
+  parentSectionId: ""
 });
+
+function courseToDrafts(course: Course): SectionDraft[] {
+  let key = 1;
+  return course.groups.flatMap((group) => group.sections.map((section) => {
+    const meeting = section.meetings[0];
+    return {
+      key: key++,
+      type: group.type as SectionDraft["type"],
+      id: section.id,
+      days: meeting?.days.join("") ?? "",
+      startTime: meeting?.startTime ?? "",
+      endTime: meeting?.endTime ?? "",
+      status: section.status,
+      sln: section.sln ?? "",
+      location: meeting?.location ?? "",
+      parentSectionId: section.parentSectionId ?? ""
+    };
+  }));
+}
 
 function parseDayCodes(value: string): DayCode[] {
   const compact = value.replace(/[\s,/]+/g, "");
@@ -237,12 +272,17 @@ function parseDayCodes(value: string): DayCode[] {
   return parsed;
 }
 
-function buildCourse(codeInput: string, drafts: SectionDraft[]): Course {
+function buildCourse(codeInput: string, titleInput: string, drafts: SectionDraft[]): Course {
   const code = codeInput.trim().replace(/\s+/g, " ").toUpperCase();
   if (!code) throw new Error("Enter a course name.");
   if (!drafts.length) throw new Error("Add at least one section time.");
 
   const seen = new Set<string>();
+  const lectureIds = new Set(
+    drafts
+      .filter((draft) => draft.type === "lecture")
+      .map((draft) => draft.id.trim().toUpperCase())
+  );
   const grouped = new Map<string, Section[]>();
   drafts.forEach((draft) => {
     const id = draft.id.trim().toUpperCase();
@@ -254,15 +294,29 @@ function buildCourse(codeInput: string, drafts: SectionDraft[]): Course {
     if (!draft.startTime || !draft.endTime || draft.startTime >= draft.endTime) {
       throw new Error(`${code} ${id} must end after it starts.`);
     }
+    if (draft.type === "lecture" && draft.parentSectionId.trim()) {
+      throw new Error(`Lecture ${id} cannot have a parent lecture.`);
+    }
+    const parentSectionId = draft.type === "lecture"
+      ? null
+      : (draft.parentSectionId.trim().toUpperCase() || id[0]);
+    if (parentSectionId && !lectureIds.has(parentSectionId)) {
+      throw new Error(
+        `${draft.type} ${id} must link to an existing lecture; ${parentSectionId} was not found.`
+      );
+    }
     seen.add(id);
     const sections = grouped.get(draft.type) ?? [];
     sections.push({
       id,
-      status: "open",
+      status: draft.status,
+      sln: draft.sln.trim() || null,
+      parentSectionId,
       meetings: [{
         days: parseDayCodes(draft.days),
         startTime: draft.startTime,
-        endTime: draft.endTime
+        endTime: draft.endTime,
+        location: draft.location.trim() || null
       }]
     });
     grouped.set(draft.type, sections);
@@ -270,6 +324,7 @@ function buildCourse(codeInput: string, drafts: SectionDraft[]): Course {
 
   return {
     code,
+    title: titleInput.trim() || null,
     groups: Array.from(grouped, ([type, sections]) => ({ type, choose: 1, sections }))
   };
 }
@@ -356,42 +411,128 @@ function Workflow({ stage }: { stage: Stage }) {
   );
 }
 
-function CourseSummary({ courses }: { courses: Course[] }) {
+function CourseWorkspace({
+  courses,
+  onSave,
+  onRemove
+}: {
+  courses: Course[];
+  onSave: (originalCode: string, course: Course) => string | null;
+  onRemove: (code: string) => void;
+}) {
   return (
-    <section className="course-summary" aria-label="Parsed course structure">
-      <div className="summary-heading">
-        <CheckCircle2 size={18} />
-        <strong>{courses.length} {courses.length === 1 ? "course" : "courses"} parsed</strong>
-      </div>
-      <div className="summary-grid">
-        {courses.map((course) => (
-          <article className="course-summary-row" key={course.code}>
-            <div>
-              <strong>{course.code}</strong>
-              <span>{course.title || "Untitled course"}</span>
+    <div className="course-workspace" aria-label="Entered courses">
+      {courses.map((course) => (
+        <EditableCourse key={course.code} course={course} onSave={onSave} onRemove={onRemove} />
+      ))}
+    </div>
+  );
+}
+
+function EditableCourse({
+  course,
+  onSave,
+  onRemove
+}: {
+  course: Course;
+  onSave: (originalCode: string, course: Course) => string | null;
+  onRemove: (code: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [code, setCode] = useState(course.code);
+  const [title, setTitle] = useState(course.title ?? "");
+  const [drafts, setDrafts] = useState(() => courseToDrafts(course));
+  const [error, setError] = useState("");
+
+  const reset = () => {
+    setCode(course.code);
+    setTitle(course.title ?? "");
+    setDrafts(courseToDrafts(course));
+    setError("");
+  };
+  const updateDraft = (key: number, field: keyof SectionDraft, value: string) => {
+    setDrafts((current) => current.map((draft) =>
+      draft.key === key ? { ...draft, [field]: value } : draft
+    ));
+    setError("");
+  };
+  const save = () => {
+    try {
+      const updated = buildCourse(code, title, drafts);
+      const saveError = onSave(course.code, updated);
+      if (saveError) throw new Error(saveError);
+      setEditing(false);
+      setError("");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Invalid course data.");
+    }
+  };
+
+  if (editing) {
+    return (
+      <article className="course-detail-card editing">
+        <div className="course-edit-header">
+          <label>Course code<input value={code} onChange={(event) => setCode(event.target.value)} /></label>
+          <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Optional title" /></label>
+        </div>
+        <div className="section-editor-list">
+          {drafts.map((draft) => (
+            <fieldset className="section-edit-card" key={draft.key}>
+              <legend>{draft.type} {draft.id}</legend>
+              <label>Type<select value={draft.type} onChange={(event) => updateDraft(draft.key, "type", event.target.value)}><option value="lecture">Lecture</option><option value="quiz">Quiz</option><option value="lab">Lab</option></select></label>
+              <label>Section ID<input value={draft.id} onChange={(event) => updateDraft(draft.key, "id", event.target.value)} /></label>
+              <label>Status<select value={draft.status} onChange={(event) => updateDraft(draft.key, "status", event.target.value)}><option value="open">Open</option><option value="closed">Closed</option><option value="unknown">Unknown</option></select></label>
+              <label>SLN<input value={draft.sln} onChange={(event) => updateDraft(draft.key, "sln", event.target.value)} placeholder="Optional" /></label>
+              <label>Days<input value={draft.days} onChange={(event) => updateDraft(draft.key, "days", event.target.value)} placeholder="MWF" /></label>
+              <label>Start<input type="time" value={draft.startTime} onChange={(event) => updateDraft(draft.key, "startTime", event.target.value)} /></label>
+              <label>End<input type="time" value={draft.endTime} onChange={(event) => updateDraft(draft.key, "endTime", event.target.value)} /></label>
+              <label>Location<input value={draft.location} onChange={(event) => updateDraft(draft.key, "location", event.target.value)} placeholder="Optional" /></label>
+              <label>Parent lecture<input value={draft.parentSectionId} onChange={(event) => updateDraft(draft.key, "parentSectionId", event.target.value)} placeholder={draft.type === "lecture" ? "Not applicable" : "A"} disabled={draft.type === "lecture"} /></label>
+              <button className="icon-button remove-edit-row" type="button" aria-label={`Remove ${draft.id}`} disabled={drafts.length === 1} onClick={() => setDrafts((current) => current.filter((item) => item.key !== draft.key))}><Trash2 size={17} /></button>
+            </fieldset>
+          ))}
+        </div>
+        <button className="add-section-button" type="button" onClick={() => setDrafts((current) => [...current, newSectionDraft(Math.max(0, ...current.map((draft) => draft.key)) + 1)])}><Plus size={17} /> Add section</button>
+        {error && <div className="error-message" role="alert"><AlertCircle size={17} /> {error}</div>}
+        <div className="course-edit-actions">
+          <button className="secondary-button" type="button" onClick={() => { reset(); setEditing(false); }}>Cancel</button>
+          <button className="save-course-button" type="button" onClick={save}><Check size={17} /> Save changes</button>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="course-detail-card">
+      <header className="course-detail-header">
+        <div><h4>{course.code}</h4><p>{course.title || "Untitled course"}</p></div>
+        <div className="course-card-actions">
+          <button className="icon-button" type="button" title="Edit course" aria-label={`Edit ${course.code}`} onClick={() => { reset(); setEditing(true); }}><Pencil size={16} /></button>
+          <button className="icon-button danger" type="button" title="Remove course" aria-label={`Remove ${course.code}`} onClick={() => onRemove(course.code)}><Trash2 size={16} /></button>
+        </div>
+      </header>
+      {course.groups.map((group) => (
+        <section className="course-group" key={group.type}>
+          <h5>{group.type}</h5>
+          {group.sections.map((section) => section.meetings.map((meeting, meetingIndex) => (
+            <div className="section-detail-row" key={`${section.id}-${meetingIndex}`}>
+              <strong>{section.id}</strong>
+              <span className={`status-badge ${section.status}`}>{section.status}</span>
+              <span>{meeting.days.join("")} · {meeting.startTime}–{meeting.endTime}</span>
+              <span>{meeting.location || "Location not set"}</span>
+              <span>{section.sln ? `SLN ${section.sln}` : "No SLN"}</span>
+              {group.type !== "lecture" && <span className="parent-link">Linked to Lecture {section.parentSectionId || section.id[0]}</span>}
             </div>
-            <div className="group-tags">
-              {course.groups.map((group, index) => (
-                <span className={group.sections.length === 0 ? "empty" : ""} key={`${group.type}-${index}`}>
-                  {group.type} · choose {group.choose ?? 1} · {group.sections.length}{" "}
-                  {group.sections.length === 1 ? "section" : "sections"}
-                </span>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
-      {courses.some((course) => course.groups.some((group) => group.sections.length === 0)) && (
-        <p className="empty-group-note">
-          Declared empty groups remain required and will produce no legal schedules.
-        </p>
-      )}
-    </section>
+          )))}
+        </section>
+      ))}
+    </article>
   );
 }
 
 type InputViewProps = {
   courseCode: string;
+  courseTitle: string;
   sectionDrafts: SectionDraft[];
   courses: Course[];
   preferenceText: string;
@@ -399,11 +540,13 @@ type InputViewProps = {
   requestError: string;
   loading: boolean;
   onCourseCodeChange: (value: string) => void;
+  onCourseTitleChange: (value: string) => void;
   onSectionChange: (key: number, field: keyof SectionDraft, value: string) => void;
   onAddSection: () => void;
   onRemoveSection: (key: number) => void;
   onAddCourse: () => void;
   onRemoveCourse: (code: string) => void;
+  onSaveCourse: (originalCode: string, course: Course) => string | null;
   onLoadSample: () => void;
   onPreferenceChange: (value: string) => void;
   onInterpret: () => void;
@@ -423,16 +566,16 @@ function InputView(props: InputViewProps) {
           </button>
         </div>
 
-        <label className="field-label" htmlFor="course-code">
-          Course name
-        </label>
-        <input
-          id="course-code"
-          className="course-name-input"
-          value={props.courseCode}
-          onChange={(event) => props.onCourseCodeChange(event.target.value)}
-          placeholder="CSE 414"
-        />
+        <div className="course-basics">
+          <label className="field-label" htmlFor="course-code">
+            Course code
+            <input id="course-code" className="course-name-input" value={props.courseCode} onChange={(event) => props.onCourseCodeChange(event.target.value)} placeholder="CSE 414" />
+          </label>
+          <label className="field-label" htmlFor="course-title">
+            Title
+            <input id="course-title" className="course-name-input" value={props.courseTitle} onChange={(event) => props.onCourseTitleChange(event.target.value)} placeholder="Optional course title" />
+          </label>
+        </div>
 
         <fieldset className="section-builder">
           <legend>Possible sections</legend>
@@ -506,14 +649,7 @@ function InputView(props: InputViewProps) {
               <h3>Added courses</h3>
               <span>{props.courses.length}</span>
             </div>
-            <CourseSummary courses={props.courses} />
-            <div className="course-remove-actions">
-              {props.courses.map((course) => (
-                <button type="button" key={course.code} onClick={() => props.onRemoveCourse(course.code)}>
-                  <Trash2 size={14} /> Remove {course.code}
-                </button>
-              ))}
-            </div>
+            <CourseWorkspace courses={props.courses} onSave={props.onSaveCourse} onRemove={props.onRemoveCourse} />
           </div>
         )}
       </section>
@@ -755,6 +891,7 @@ function ResultsView({ response, onBack }: { response: GenerateResponse; onBack:
 function App() {
   const [stage, setStage] = useState<Stage>("input");
   const [courseCode, setCourseCode] = useState("");
+  const [courseTitle, setCourseTitle] = useState("");
   const [sectionDrafts, setSectionDrafts] = useState<SectionDraft[]>([
     newSectionDraft(1)
   ]);
@@ -773,12 +910,13 @@ function App() {
 
   const addCourse = () => {
     try {
-      const course = buildCourse(courseCode, sectionDrafts);
+      const course = buildCourse(courseCode, courseTitle, sectionDrafts);
       if (courses.some((item) => item.code === course.code)) {
         throw new Error(`${course.code} has already been added.`);
       }
       setCourses((current) => [...current, course]);
       setCourseCode("");
+      setCourseTitle("");
       setSectionDrafts([newSectionDraft(nextSectionKey)]);
       setNextSectionKey((current) => current + 1);
       setCourseError("");
@@ -815,6 +953,19 @@ function App() {
     setCourses(sampleCourses);
     setCourseError("");
     setResponse(null);
+  };
+
+  const saveCourse = (originalCode: string, updatedCourse: Course) => {
+    if (courses.some((course) => course.code === updatedCourse.code && course.code !== originalCode)) {
+      return `${updatedCourse.code} has already been added.`;
+    }
+    setCourses((current) => current.map((course) =>
+      course.code === originalCode ? updatedCourse : course
+    ));
+    setPreferences(null);
+    setResponse(null);
+    setRequestError("");
+    return null;
   };
 
   const interpretPreferences = async () => {
@@ -874,6 +1025,7 @@ function App() {
       </div>
       {stage === "input" && <InputView
         courseCode={courseCode}
+        courseTitle={courseTitle}
         sectionDrafts={sectionDrafts}
         courses={courses}
         preferenceText={preferenceText}
@@ -881,11 +1033,13 @@ function App() {
         requestError={requestError}
         loading={loading}
         onCourseCodeChange={(value) => { setCourseCode(value); setCourseError(""); }}
+        onCourseTitleChange={(value) => { setCourseTitle(value); setCourseError(""); }}
         onSectionChange={updateSection}
         onAddSection={addSection}
         onRemoveSection={(key) => setSectionDrafts((current) => current.filter((section) => section.key !== key))}
         onAddCourse={addCourse}
         onRemoveCourse={(code) => { setCourses((current) => current.filter((course) => course.code !== code)); setResponse(null); }}
+        onSaveCourse={saveCourse}
         onLoadSample={loadSample}
         onPreferenceChange={setPreferenceText}
         onInterpret={interpretPreferences}

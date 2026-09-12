@@ -69,7 +69,7 @@ describe("App", () => {
     );
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Course name"), {
+    fireEvent.change(screen.getByLabelText("Course code"), {
       target: { value: "CSE 414" }
     });
     fireEvent.click(screen.getByRole("button", { name: "Add section time" }));
@@ -85,8 +85,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add course" }));
 
     expect(await screen.findByText("CSE 414")).toBeInTheDocument();
-    expect(screen.getByText("lecture · choose 1 · 1 section")).toBeInTheDocument();
-    expect(screen.getByText("quiz · choose 1 · 1 section")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "lecture" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "quiz" })).toBeInTheDocument();
+    expect(screen.getByText("Linked to Lecture A")).toBeInTheDocument();
   });
 
   it("loads sample data and immediately displays its course summary", () => {
@@ -98,9 +99,12 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
 
-    expect(screen.getByText("2 courses parsed")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Added courses" })).toBeInTheDocument();
     expect(screen.getByText("CSE 373")).toBeInTheDocument();
     expect(screen.getByText("INFO 370")).toBeInTheDocument();
+    expect(screen.getAllByText("Linked to Lecture A")).toHaveLength(2);
+    expect(screen.getAllByText("KNE 120")).toHaveLength(2);
+    expect(screen.getByText("SLN 12303")).toBeInTheDocument();
   });
 
   it("uses safe defaults when preference text is blank", async () => {
@@ -134,7 +138,7 @@ describe("App", () => {
     );
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Course name"), { target: { value: "CSE 414" } });
+    fireEvent.change(screen.getByLabelText("Course code"), { target: { value: "CSE 414" } });
     fireEvent.change(screen.getByLabelText("Section 1 days"), { target: { value: "Sunday" } });
     fireEvent.click(screen.getByRole("button", { name: "Add course" }));
 
@@ -318,7 +322,7 @@ describe("App", () => {
     );
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Course name"), {
+    fireEvent.change(screen.getByLabelText("Course code"), {
       target: { value: "CHEM 142" }
     });
     fireEvent.click(screen.getByRole("button", { name: "Add section time" }));
@@ -326,13 +330,50 @@ describe("App", () => {
       target: { value: "lab" }
     });
     fireEvent.change(screen.getByLabelText("Section 2 ID"), {
-      target: { value: "LA" }
+      target: { value: "AL" }
     });
     fireEvent.click(screen.getByRole("button", { name: "Add course" }));
 
     expect(await screen.findByText("CHEM 142")).toBeInTheDocument();
-    expect(screen.getByText("lecture · choose 1 · 1 section")).toBeInTheDocument();
-    expect(screen.getByText("lab · choose 1 · 1 section")).toBeInTheDocument();
-    expect(screen.queryByText(/quiz ·/)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "lecture" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "lab" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "quiz" })).not.toBeInTheDocument();
+  });
+
+  it("edits course and section metadata, then validates linked lectures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok" }), { status: 200 }))
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load sample data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit CSE 373" }));
+
+    fireEvent.change(screen.getAllByLabelText("Course code").at(-1)!, { target: { value: "CSE 374" } });
+    fireEvent.change(screen.getAllByLabelText("Title").at(-1)!, { target: { value: "Intermediate Programming" } });
+    const statuses = screen.getAllByLabelText("Status");
+    fireEvent.change(statuses[0], { target: { value: "closed" } });
+    fireEvent.change(screen.getAllByLabelText("SLN")[0], { target: { value: "99999" } });
+    fireEvent.change(screen.getAllByLabelText("Location")[0], { target: { value: "MEB 238" } });
+    const linkedParents = screen.getAllByLabelText("Parent lecture").filter(
+      (input) => !(input as HTMLInputElement).disabled
+    );
+    fireEvent.change(linkedParents[0], { target: { value: "B" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByText("CSE 374")).toBeInTheDocument();
+    expect(screen.getByText("Intermediate Programming")).toBeInTheDocument();
+    expect(screen.getByText("SLN 99999")).toBeInTheDocument();
+    expect(screen.getByText("MEB 238")).toBeInTheDocument();
+    expect(screen.getByText("Linked to Lecture B")).toBeInTheDocument();
+    expect(screen.getAllByText("closed").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit CSE 374" }));
+    const editedParents = screen.getAllByLabelText("Parent lecture").filter(
+      (input) => !(input as HTMLInputElement).disabled
+    );
+    fireEvent.change(editedParents[0], { target: { value: "Z" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("must link to an existing lecture");
   });
 });

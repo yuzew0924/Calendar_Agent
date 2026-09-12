@@ -386,6 +386,20 @@ scores only when the user supplies `gapPreference: "compact"`, `"balanced"`, or
 `"breaks"`. With `gapPreference: "none"`, all schedules receive the same neutral
 gap contribution and gap shape does not affect ranking.
 
+### Reviewing and Editing Courses
+
+After a course is added or sample data is loaded, the frontend displays its
+code, title, groups, section IDs, status, SLN, meeting days and times, location,
+and linked lecture. Each course has an edit action covering all of those fields.
+Saving runs frontend structural validation again and clears stale preference and
+schedule results before the next generation request.
+
+Linked components follow the same rule in the frontend and backend: Lecture `A`
+can only combine with `A`-prefixed quiz/lab sections such as `AA`, `AB`, and
+`AC`, or a section whose explicit `parentSectionId` is `A`. It cannot combine
+with `BA`, `BB`, or `BC`. Explicit parent links are shown as “Linked to Lecture
+A” so incorrect course data can be spotted before generation.
+
 Each score-breakdown rule includes its score delta, matched preference,
 calculation details, reason and trade-off candidates, and affected sections and
 meetings. The API validates that the total score equals the sum of these rule

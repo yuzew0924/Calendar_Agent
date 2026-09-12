@@ -8,15 +8,16 @@ options. Users do not need to call backend endpoints manually.
 1. Enter a course name and add each possible lecture, quiz, or lab section row,
    or select **Load sample data** for an immediate example.
 2. Add the course and review the course count and generated section groups.
-3. Enter schedule preferences in natural language.
-4. Send the preferences to `POST /parse-preferences`.
-5. Review the validated hard constraints, soft preferences, conflicts, and any
+3. Inspect or edit course metadata, section details, and linked lectures.
+4. Enter schedule preferences in natural language.
+5. Send the preferences to `POST /parse-preferences`.
+6. Review the validated hard constraints, soft preferences, conflicts, and any
    clarification questions returned by the backend.
-6. Confirm the interpretation or return to edit the preference text.
-7. Send the confirmed request to `POST /api/schedules/generate`.
-8. Review the ranked, conflict-free schedule candidates.
-9. Switch between candidates and compare their weekly calendars.
-10. Inspect each option's score, reasons, trade-offs, and score breakdown.
+7. Confirm the interpretation or return to edit the preference text.
+8. Send the confirmed request to `POST /api/schedules/generate`.
+9. Review the ranked, conflict-free schedule candidates.
+10. Switch between candidates and compare their weekly calendars, scores,
+    reasons, trade-offs, and score breakdowns.
 
 ## Confirmation and Revision
 
@@ -53,6 +54,24 @@ need to write JSON.
 - Weekdays use `M`, `T`, `W`, `Th`, and `F`; compact values such as `MWF` work.
 - Start time must be earlier than end time.
 - Invalid rows are shown as form errors before an API request is made.
+
+## Course Review and Editing
+
+Every added course renders a detailed view grouped by lecture, quiz, and lab.
+It shows course code and title plus each section's ID, status, SLN, meeting days,
+time, location, and linked lecture. For example, quiz `AA` displays “Linked to
+Lecture A.”
+
+The edit action supports course code, title, section ID/type/status, SLN, days,
+start/end time, location, and `parentSectionId`. Saving rebuilds the same course
+schema used for new input and reruns validation. Invalid weekdays, time ranges,
+duplicate IDs, duplicate course codes, and nonexistent parent lectures remain
+visible in edit mode and are not saved. A successful save invalidates previously
+parsed preferences and generated schedules so the next result uses current data.
+
+Lecture `A` only pairs with an `A`-prefixed quiz/lab (`AA`, `AB`, `AC`, etc.) or
+one explicitly configured with `parentSectionId: "A"`. The system never combines
+Lecture `A` with a `B`-linked section such as `BA`, `BB`, or `BC`.
 
 The backend still supports and validates empty declared groups when requests are
 sent directly through the API. The Pydantic models remain the authority for
