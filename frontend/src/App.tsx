@@ -386,7 +386,7 @@ function TopBar() {
     <header className="top-bar">
       <div className="brand">
         <CalendarDays size={23} aria-hidden="true" />
-        <h1>CourseSchedulePilot</h1>
+        <h1>Course Schedule Pilot</h1>
       </div>
       <div className={`backend-status ${backendState}`} role="status" aria-live="polite">
         <span aria-hidden="true" />
