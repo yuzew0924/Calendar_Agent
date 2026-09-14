@@ -52,7 +52,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "Calendar Agent" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "CourseSchedulePilot" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Checking backend");
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
   });
